@@ -1,5 +1,5 @@
 {
-    "name": "payxy/payxy-php",
+    "name": "payxy/payxy-php-sdk",
     "description": "PHP SDK for the Payxy payment gateway: Hosted Checkout, payment verification and webhook verification.",
     "type": "library",
     "license": "MIT",

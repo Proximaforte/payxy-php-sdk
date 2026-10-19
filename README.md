@@ -28,7 +28,7 @@ A PHP SDK for the **Payxy payment gateway**, aligned with the current Payxy Core
 - A PSR-18 HTTP client. Guzzle (bundled with Laravel) or `symfony/http-client` is detected and hardened automatically.
 
 ```bash
-composer require payxy/payxy-php guzzlehttp/guzzle
+composer require payxy/payxy-php-sdk guzzlehttp/guzzle
 ```
 
 The package name, Packagist availability and licence are still to be confirmed. See [Status](#status-confirmed-vs-pending).

@@ -34,7 +34,7 @@ final class PaymentsServiceTest extends SdkTestCase
         self::assertSame(self::BASE_URL . '/api/Payments/Initialize', (string) $request->getUri());
         self::assertSame('Bearer ' . self::PUBLIC_KEY, $request->getHeaderLine('Authorization'));
         self::assertSame('application/json; charset=utf-8', $request->getHeaderLine('Content-Type'));
-        self::assertStringStartsWith('payxy-php/', $request->getHeaderLine('User-Agent'));
+        self::assertStringStartsWith('payxy-php-sdk/', $request->getHeaderLine('User-Agent'));
         self::assertSame('75000.00', $this->http->lastJsonBody()['amount']);
 
         self::assertSame('https://checkout.payxy.ng/abc123accesscode', $response->getPaymentUrl());

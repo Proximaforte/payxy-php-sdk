@@ -45,7 +45,7 @@ final class Transport
         private readonly LoggerInterface $logger,
         private readonly Sleeper $sleeper,
     ) {
-        $this->userAgent = \sprintf('payxy-php/%s PHP/%s', Payxy::VERSION, \PHP_VERSION)
+        $this->userAgent = \sprintf('payxy-php-sdk/%s PHP/%s', Payxy::VERSION, \PHP_VERSION)
             . ($config->userAgentSuffix !== null ? ' ' . $config->userAgentSuffix : '');
     }
 
