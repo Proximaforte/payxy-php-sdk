@@ -1,0 +1,73 @@
+{
+    "name": "payxy/payxy-php",
+    "description": "PHP SDK for the Payxy payment gateway: Hosted Checkout, payment verification and webhook verification.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["payxy", "payments", "payment gateway", "checkout", "sdk"],
+    "require": {
+        "php": "^8.2",
+        "ext-json": "*",
+        "php-http/discovery": "^1.19",
+        "psr/http-client": "^1.0",
+        "psr/http-client-implementation": "*",
+        "psr/http-factory": "^1.0",
+        "psr/http-factory-implementation": "*",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/log": "^2.0 || ^3.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "guzzlehttp/guzzle": "^7.9",
+        "nyholm/psr7": "^1.8",
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^11.5",
+        "symfony/config": "^6.4 || ^7.0 || ^8.0",
+        "symfony/dependency-injection": "^6.4 || ^7.0 || ^8.0",
+        "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
+        "symfony/http-kernel": "^6.4 || ^7.0 || ^8.0"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "Default HTTP client; the SDK configures timeouts and TLS verification for it automatically.",
+        "symfony/http-client": "Alternative HTTP client; also configured automatically."
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Payxy\\Bridge\\Laravel\\PayxyServiceProvider"],
+            "aliases": {
+                "Payxy": "Payxy\\Bridge\\Laravel\\Facades\\Payxy"
+            }
+        }
+    },
+    "conflict": {
+        "laravel/framework": "<11.0",
+        "symfony/http-kernel": "<6.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Payxy\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Payxy\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": false
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "check": ["@cs", "@analyse", "@test"]
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

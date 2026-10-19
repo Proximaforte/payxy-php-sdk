@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "payxy-demo",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": ["docker", "run", "--rm", "--name", "payxy-demo", "-p", "8080:8080", "-v", "/mnt/c/Users/Sodiq.Badmus/work/php-payxy-sdk:/app", "-w", "/app", "composer:2", "php", "-S", "0.0.0.0:8080", "examples/demo/index.php"],
+      "port": 8080
+    }
+  ]
+}

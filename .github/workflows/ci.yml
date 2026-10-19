@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Style & static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - run: composer update --no-interaction --no-progress
+      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+        env:
+          PHP_CS_FIXER_IGNORE_ENV: 1
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - run: composer audit
+
+  tests:
+    name: PHP ${{ matrix.php }} (${{ matrix.deps }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+        deps: [highest]
+        include:
+          - php: '8.2'
+            deps: lowest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - run: composer update --no-interaction --no-progress ${{ matrix.deps == 'lowest' && '--prefer-lowest' || '' }}
+      - run: vendor/bin/phpunit
