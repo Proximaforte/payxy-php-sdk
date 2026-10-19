@@ -7,6 +7,7 @@ namespace Payxy\Webhook;
 use Closure;
 use JsonException;
 use Payxy\Auth\WebhookSecret;
+use Payxy\Environment;
 use Payxy\Exception\ConfigurationException;
 use Payxy\Exception\WebhookVerificationException;
 use Psr\Http\Message\ServerRequestInterface;
@@ -48,12 +49,12 @@ final class WebhookVerifier
     }
 
     /**
-     * True when the webhook is authentic and fresh. Pass the exact raw body bytes.
+     * True when the webhook is authentic, fresh and structurally valid. Pass the exact raw body bytes.
      */
     public function verify(string $rawBody, ?string $signatureHeader, ?string $timestampHeader): bool
     {
         try {
-            $this->authenticate($rawBody, $signatureHeader, $timestampHeader);
+            $this->constructEvent($rawBody, $signatureHeader, $timestampHeader);
 
             return true;
         } catch (WebhookVerificationException) {
@@ -77,10 +78,42 @@ final class WebhookVerifier
         if (!\is_array($payload)) {
             throw new WebhookVerificationException('Webhook body is not a JSON object.');
         }
+        $this->validatePayload($payload);
 
         $attempt = $attemptHeader !== null && ctype_digit(trim($attemptHeader)) ? (int) $attemptHeader : 1;
 
         return new WebhookEvent($payload, $attempt);
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     */
+    private function validatePayload(array $payload): void
+    {
+        $event = $payload['Event'] ?? null;
+        if (!\is_string($event) || trim($event) === '') {
+            throw new WebhookVerificationException('Webhook Event is missing or malformed.');
+        }
+
+        $mode = $payload['Mode'] ?? null;
+        if (!\is_string($mode) || !\in_array($mode, ['Test', 'Production'], true)) {
+            throw new WebhookVerificationException('Webhook Mode must be Test or Production.');
+        }
+
+        $expectedMode = $this->secret->environment() === Environment::Sandbox ? 'Test' : 'Production';
+        if ($mode !== $expectedMode) {
+            throw new WebhookVerificationException('Webhook Mode does not match the configured webhook secret.');
+        }
+
+        $data = $payload['Data'] ?? null;
+        if (!\is_array($data)) {
+            throw new WebhookVerificationException('Webhook Data is missing or malformed.');
+        }
+
+        $transactionId = $data['TransactionId'] ?? null;
+        if (!\is_string($transactionId) || trim($transactionId) === '') {
+            throw new WebhookVerificationException('Webhook Data.TransactionId is missing or malformed.');
+        }
     }
 
     /**

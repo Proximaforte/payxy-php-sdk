@@ -31,7 +31,7 @@ A PHP SDK for the **Payxy payment gateway**, aligned with the current Payxy Core
 composer require payxy/payxy-php-sdk guzzlehttp/guzzle
 ```
 
-The package name, Packagist availability and licence are still to be confirmed. See [Status](#status-confirmed-vs-pending).
+The package will be installed as `payxy/payxy-php-sdk` once its public Packagist listing is available. See [Status](#status-confirmed-vs-pending).
 
 ---
 
@@ -177,14 +177,22 @@ and its framing contract isn't confirmed. → [Hosted Checkout](docs/hosted-chec
 - GetPaymentInfo returns separate checkout and realtime tokens.
 - Webhooks: `payment.success` / `payment.failed`, HMAC-SHA512 over `timestamp.rawBody`, PascalCase JSON, dual signatures during the 24-hour rotation grace period.
 - IP allowlisting is mode-specific. MakePayment takes an encrypted `payload` wrapper (hence no direct payment here).
+- The API domains are `https://api.payxy.ng` for Test and `https://api.payxy.africa` for Production; hosted checkout uses the corresponding `checkout` subdomains.
 
 **Not yet guaranteed** (the SDK doesn't depend on these, or marks them as experimental):
 
-- Production and staging base URLs beyond the current public domains (override with `baseUrl` if needed).
 - Hosted Checkout redirect query parameters (use the ID from your session).
 - iframe/popup support and the hosted page's `postMessage` format (popup display is experimental).
 - Webhook retry timing as an SLA.
-- Composer package name, Packagist availability, licence, and "official SDK" status, until Payxy approves and publishes the package.
+- Packagist availability until the public package submission is completed.
+
+---
+
+## License and security
+
+The Payxy PHP SDK is released under the [MIT License](LICENSE). The bundled browser checkout component and its licenses are documented in [Third-Party Notices](THIRD_PARTY_NOTICES.md).
+
+Please report suspected vulnerabilities privately as described in the [Security Policy](SECURITY.md). Do not open a public issue containing credentials, payment data, customer information, or vulnerability details.
 
 ---
 

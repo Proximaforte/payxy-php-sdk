@@ -207,7 +207,7 @@ final class PayxyCheckoutTest extends SdkTestCase
     {
         $checkout = new ShopCheckout($this->payxy(self::ok(['status' => 'Successful', 'isSuccessful' => true, 'amount' => '5000', 'currency' => 'NGN'])));
         $checkout->orders['TXN-20260706-0001'] = Amount::of(5000);
-        $body = '{"Event":"payment.success","Data":{"TransactionId":"TXN-20260706-0001","Status":"Successful","IsSuccessful":true}}';
+        $body = '{"Event":"payment.success","Mode":"Test","Data":{"TransactionId":"TXN-20260706-0001","Status":"Successful","IsSuccessful":true}}';
         $timestamp = (string) time();
 
         $result = $checkout->handleWebhook($body, hash_hmac('sha512', $timestamp . '.' . $body, self::WEBHOOK_SECRET), $timestamp);

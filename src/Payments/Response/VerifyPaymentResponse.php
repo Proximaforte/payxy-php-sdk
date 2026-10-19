@@ -169,7 +169,7 @@ final class VerifyPaymentResponse extends PaymentResponse
 
     /**
      * Compares the commercial amount (data.amount), never customerPaid, which includes fees.
-     * Currency is compared only when given and reported.
+     * When an expected currency is supplied, the response must report the same currency.
      */
     public function amountMatches(Amount $expected, ?string $expectedCurrency = null): bool
     {
@@ -179,7 +179,8 @@ final class VerifyPaymentResponse extends PaymentResponse
         }
         $currency = $this->getCurrency();
 
-        return $expectedCurrency === null || $currency === null || strtoupper($currency) === strtoupper($expectedCurrency);
+        return $expectedCurrency === null
+            || ($currency !== null && strtoupper($currency) === strtoupper($expectedCurrency));
     }
 
     private function nonEmpty(string $key): ?string

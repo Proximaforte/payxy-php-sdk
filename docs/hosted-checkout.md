@@ -140,7 +140,7 @@ through VerifyPayment.
 | Mode | Status | Behaviour |
 |---|---|---|
 | `Redirect` | **Supported** | The button links to `paymentUrl`. No JavaScript needed. |
-| `Popup` | **Experimental** | Opens Payxy's browser overlay (`@proximafortedev/payxy` 1.0.10, bundled unmodified). iframe/popup support and the hosted page's `postMessage` format aren't confirmed contracts. The hosted checkout only allows framing by **HTTPS** pages (`frame-ancestors 'self' https:`), so on plain `http` the button falls back to a redirect. |
+| `Popup` | **Experimental** | Opens Payxy's browser overlay (`@proximafortedev/payxy` 1.0.10; see `THIRD_PARTY_NOTICES.md`). iframe/popup support and the hosted page's `postMessage` format aren't confirmed contracts. The hosted checkout only allows framing by **HTTPS** pages (`frame-ancestors 'self' https:`), so on plain `http` the button falls back to a redirect. |
 
 ## Single-page apps and mobile apps
 

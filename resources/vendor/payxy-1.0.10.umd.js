@@ -1,4 +1,4 @@
-/*! @proximafortedev/payxy 1.0.10 | ISC License | Official Payxy browser checkout overlay, bundled unmodified from npm (dist/payxy.umd.js). */
+/*! @proximafortedev/payxy 1.0.10 | ISC License | See THIRD_PARTY_NOTICES.md. */
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
     typeof define === 'function' && define.amd ? define(['exports'], factory) :

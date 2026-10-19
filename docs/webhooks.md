@@ -53,7 +53,7 @@ may carry several comma-separated signatures; accept the event if any one matche
 ## SDK API
 
 ```php
-// Boolean check
+// Boolean authenticity, freshness and structure check
 $payxy->webhooks()->verify($rawBody, $signatureHeader, $timestampHeader);              // true / false
 
 // Check + parse (throws WebhookVerificationException)
@@ -70,6 +70,8 @@ Needs `webhookSecret` in `PayxyConfig` (`PAYXY_WEBHOOK_SECRET`). The verifier en
 | Freshness | `x-payxy-timestamp` within **300 s** of now (both directions; configurable `toleranceSeconds`) |
 | Raw body | Exact bytes as received. A parsed and re-encoded body won't verify. |
 | Size | ≤ 1 MiB, and must be a JSON object |
+| Structure | Non-empty `Event`, `Data.TransactionId`, and a `Mode` of `Test` or `Production` |
+| Environment | `Mode` must match the configured `sk_test_` or `sk_live_` webhook secret |
 
 `WebhookEvent` getters: `getEvent()`, `isPaymentSuccess()`, `isPaymentFailed()`, `getMode()`, `getMerchantId()`,
 `getTransactionId()`, `getStatus()`, `isSuccessful()`, `getAmount()`, `getCustomerPaid()`, `getAmountPaidToMerchant()`,

@@ -5,7 +5,7 @@
     ".": {
       "release-type": "php",
       "package-name": "payxy/payxy-php-sdk",
-      "release-as": "1.0.0",
+      "include-component-in-tag": false,
       "include-v-in-tag": true,
       "include-v-in-release-name": true,
       "changelog-path": "CHANGELOG.md",

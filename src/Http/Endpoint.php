@@ -22,11 +22,12 @@ final readonly class Endpoint
         public string $pathTemplate,
         public bool $idempotent,
         public bool $codeIsStatus = false,
+        public bool $requiresAuthentication = true,
     ) {}
 
-    public static function get(string $pathTemplate): self
+    public static function get(string $pathTemplate, bool $requiresAuthentication = true): self
     {
-        return new self(HttpMethod::Get, $pathTemplate, true);
+        return new self(HttpMethod::Get, $pathTemplate, true, requiresAuthentication: $requiresAuthentication);
     }
 
     public static function post(string $pathTemplate, bool $idempotent = false, bool $codeIsStatus = false): self

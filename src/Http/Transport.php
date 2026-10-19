@@ -110,9 +110,12 @@ final class Transport
     private function buildRequest(Endpoint $endpoint, string $url, #[SensitiveParameter] ?string $body): RequestInterface
     {
         $request = $this->requestFactory->createRequest($endpoint->method->value, $url)
-            ->withHeader('Authorization', 'Bearer ' . $this->config->publicKey->value())
             ->withHeader('Accept', 'application/json')
             ->withHeader('User-Agent', $this->userAgent);
+
+        if ($endpoint->requiresAuthentication) {
+            $request = $request->withHeader('Authorization', 'Bearer ' . $this->config->publicKey->value());
+        }
 
         if ($body === null) {
             return $request;

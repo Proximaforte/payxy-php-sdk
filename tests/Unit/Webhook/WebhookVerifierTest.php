@@ -65,10 +65,12 @@ final class WebhookVerifierTest extends TestCase
     public function testVerifyIsABooleanCheck(): void
     {
         $verifier = $this->verifier(self::TEST_SECRET);
+        $invalidBody = '{"Event":"payment.success","Mode":"Test","Data":{}}';
 
         self::assertTrue($verifier->verify(self::FAILED_BODY, self::sign(self::FAILED_BODY, self::TEST_SECRET), (string) self::NOW));
         self::assertFalse($verifier->verify(self::FAILED_BODY, self::sign(self::FAILED_BODY, self::LIVE_SECRET), (string) self::NOW));
         self::assertFalse($verifier->verify(self::FAILED_BODY, null, (string) self::NOW));
+        self::assertFalse($verifier->verify($invalidBody, self::sign($invalidBody, self::TEST_SECRET), (string) self::NOW));
     }
 
     #[DataProvider('rotationHeaders')]
@@ -119,6 +121,29 @@ final class WebhookVerifierTest extends TestCase
         yield 'future timestamp' => [[self::FAILED_BODY, self::sign(self::FAILED_BODY, self::TEST_SECRET, self::NOW + 301), (string) (self::NOW + 301)], 'window'];
         yield 'timestamp swapped' => [[self::FAILED_BODY, $good, (string) (self::NOW + 1)], 'does not match'];
         yield 'not json' => [['nope', self::sign('nope', self::TEST_SECRET), (string) self::NOW], 'JSON'];
+    }
+
+    #[DataProvider('invalidPayloads')]
+    public function testRejectsSignedButStructurallyInvalidWebhooks(string $body, string $reason, string $secret = self::TEST_SECRET): void
+    {
+        $this->expectException(WebhookVerificationException::class);
+        $this->expectExceptionMessageMatches('/' . $reason . '/i');
+
+        $this->verifier($secret)->constructEvent($body, self::sign($body, $secret), (string) self::NOW);
+    }
+
+    /**
+     * @return iterable<string, array{string, string, 2?: string}>
+     */
+    public static function invalidPayloads(): iterable
+    {
+        yield 'missing event' => ['{"Mode":"Test","Data":{"TransactionId":"ORDER-1"}}', 'Event'];
+        yield 'blank event' => ['{"Event":" ","Mode":"Test","Data":{"TransactionId":"ORDER-1"}}', 'Event'];
+        yield 'invalid mode' => ['{"Event":"payment.success","Mode":"Sandbox","Data":{"TransactionId":"ORDER-1"}}', 'Mode'];
+        yield 'mode and secret differ' => ['{"Event":"payment.success","Mode":"Production","Data":{"TransactionId":"ORDER-1"}}', 'configured webhook secret'];
+        yield 'missing data' => ['{"Event":"payment.success","Mode":"Test"}', 'Data'];
+        yield 'missing transaction id' => ['{"Event":"payment.success","Mode":"Test","Data":{}}', 'TransactionId'];
+        yield 'blank transaction id' => ['{"Event":"payment.success","Mode":"Test","Data":{"TransactionId":" "}}', 'TransactionId'];
     }
 
     public function testConstructsEventsFromPsr7Requests(): void

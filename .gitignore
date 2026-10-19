@@ -7,3 +7,4 @@ Payxy PHP SDK Core Alignment TODO.md
 /.phpunit.cache/
 /.php-cs-fixer.cache
 /examples/demo/.env
+.claude

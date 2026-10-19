@@ -38,7 +38,7 @@ final class PaymentsService extends AbstractService
     public function getPaymentInfo(string $accessCode): PaymentInfoResponse
     {
         return $this->request(
-            Endpoint::get(self::GET_PAYMENT_INFO),
+            Endpoint::get(self::GET_PAYMENT_INFO, requiresAuthentication: false),
             PaymentInfoResponse::class,
             pathParams: ['accessCode' => $accessCode],
         );

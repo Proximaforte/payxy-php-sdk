@@ -91,6 +91,7 @@ final class PaymentsServiceTest extends SdkTestCase
         $request = $this->http->lastRequest();
         self::assertSame('GET', $request->getMethod());
         self::assertSame('/api/Payments/GetPaymentInfo/a%2Fb%3Fc', $request->getUri()->getPath());
+        self::assertFalse($request->hasHeader('Authorization'));
         self::assertSame('https://checkout.payxy.ng/abc123accesscode', $info->getPaymentUrl());
         self::assertSame('75000.00', (string) $info->getAmount());
         self::assertSame('Example Merchant', $info->getBusinessName());
@@ -157,6 +158,19 @@ final class PaymentsServiceTest extends SdkTestCase
         self::assertTrue($verify->amountMatches(Amount::of('75000'), 'NGN'));
         self::assertFalse($verify->amountMatches(Amount::of('76129'), 'NGN'));
         self::assertFalse($verify->amountMatches(Amount::of('75000'), 'USD'));
+    }
+
+    public function testAmountComparisonFailsWhenAnExpectedCurrencyIsNotReported(): void
+    {
+        $verify = $this->payxy(self::ok([
+            'amount' => 75000.00,
+            'status' => 'Successful',
+            'isSuccessful' => true,
+            'transactionId' => 'ORD-261019-A12BC34D',
+        ]))->payments()->verify('ORD-261019-A12BC34D');
+
+        self::assertTrue($verify->amountMatches(Amount::of('75000')));
+        self::assertFalse($verify->amountMatches(Amount::of('75000'), 'NGN'));
     }
 
     /**
