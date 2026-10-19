@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.1...v1.0.2) (2026-10-19)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump actions/checkout from 4.4.0 to 7.0.1 ([76a4cec](https://github.com/Proximaforte/payxy-php-sdk/commit/76a4cec0bf0e5f4fa8d3276c780f345f8e428e4e))
+* **deps:** bump googleapis/release-please-action from 4.4.1 to 5.0.0 ([f1576a2](https://github.com/Proximaforte/payxy-php-sdk/commit/f1576a21636dae49fbcda5f465649230094deb91))
+
 ## [1.0.1](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.0...v1.0.1) (2026-10-19)
 
 
