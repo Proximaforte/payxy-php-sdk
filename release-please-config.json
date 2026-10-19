@@ -1,0 +1,20 @@
+
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "php",
+      "package-name": "payxy/payxy-php-sdk",
+      "release-as": "1.0.0",
+      "include-v-in-tag": true,
+      "include-v-in-release-name": true,
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "src/Payxy.php"
+        }
+      ]
+    }
+  }
+}
