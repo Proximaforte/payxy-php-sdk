@@ -27,7 +27,7 @@ use Psr\Log\NullLogger;
  */
 final class Payxy
 {
-    public const VERSION = '1.0.2'; // x-release-please-version
+    public const VERSION = '1.0.3'; // x-release-please-version
 
     private readonly Transport $transport;
 

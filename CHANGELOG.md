@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.2...v1.0.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* derive checkout URL from public key environment ([140ae7e](https://github.com/Proximaforte/payxy-php-sdk/commit/140ae7e0270a9112914358bf8ca996cfe615c236))
+* derive checkout URL from public key environment ([ce3642a](https://github.com/Proximaforte/payxy-php-sdk/commit/ce3642ac344ab9cf08506b3954a8b61d603d3c31))
+
 ## [1.0.2](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.1...v1.0.2) (2026-10-19)
 
 
