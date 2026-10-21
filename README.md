@@ -31,7 +31,8 @@ A PHP SDK for the **Payxy payment gateway**, aligned with the current Payxy Core
 composer require payxy/payxy-php-sdk guzzlehttp/guzzle
 ```
 
-The package will be installed as `payxy/payxy-php-sdk` once its public Packagist listing is available. See [Status](#status-confirmed-vs-pending).
+The package is published on [Packagist](https://packagist.org/packages/payxy/payxy-php-sdk) and follows semantic
+versioning. Upgrade within the 1.x line with `composer update payxy/payxy-php-sdk`, then commit `composer.lock`.
 
 ---
 
@@ -40,8 +41,8 @@ The package will be installed as `payxy/payxy-php-sdk` once its public Packagist
 ### 1. Configure
 
 ```dotenv
-PAYXY_PUBLIC_KEY=pk_test_xxx          # API authentication; pk_live_ for production
-PAYXY_WEBHOOK_SECRET=sk_test_xxx      # webhook signatures only; never sent to Payxy
+PAYXY_PUBLIC_KEY=pk_test_xxx# API authentication; pk_live_ for production
+PAYXY_WEBHOOK_SECRET=sk_test_xxx# webhook signatures only; never sent to Payxy
 ```
 
 ```php
@@ -79,10 +80,13 @@ $response = $payxy->payments()->initialize(new InitializePaymentRequest(
     callbackUrl: 'https://merchant.example.com/payments/payxy/return',
 ));
 
-header('Location: ' . $response->getPaymentUrl());
+header('Location: ' . $response->getPaymentUrl());             // always an absolute https:// checkout URL
 exit;
 ```
 
+`getPaymentUrl()` never returns a relative path. If Payxy's `paymentUrl` isn't an absolute `https://` URL, the SDK
+uses the environment's hosted checkout for the access code instead (`checkout.payxy.ng` for test keys,
+`checkout.payxy.africa` for live keys). `getRawPaymentUrl()` keeps Payxy's original value for logging.
 → [Payment initialization](docs/payment-initialization.md) · [Hosted Checkout](docs/hosted-checkout.md)
 
 ### 3. Verify on the callback
@@ -92,12 +96,14 @@ The callback URL is a browser return URL, **not** proof of payment.
 ```php
 $verification = $payxy->payments()->verify($_SESSION['payxy_transaction_id']);   // your id, not the query string
 
-if ($verification->isPaid() && $verification->amountMatches(Amount::fromString('75000.00'), 'NGN')) {
+if ($verification->isPaid() && $verification->checkAmount(Amount::fromString('75000.00'), 'NGN')->isAcceptable()) {
     $order->markAsPaid();             // isPaid() = responseCode "00" && data.isSuccessful === true
 }
 ```
 
 Pending (`05`) and failed (`02`) transactions come back as results (`isPending()`, `getStatus()`), not exceptions.
+`checkAmount()` returns the reason for a mismatch (`Underpaid`, `UnexplainedSurplus`, …). Successful bank transfers can
+report an `amount` that **includes fees**; see [Transfers](docs/payment-verification.md#transfers-amount-can-include-fees).
 → [Payment verification](docs/payment-verification.md)
 
 ### 4. Handle webhooks
@@ -135,6 +141,13 @@ final class ShopCheckout extends \Payxy\Checkout\PayxyCheckout
     {
         return Order::findByPayxyId($transactionId)?->amount;
     }
+
+    // Optional business decision: how far a payment may exceed the order when Payxy sends no fee
+    // breakdown (successful bank transfers include fees in the amount). Omit it to stay strict.
+    protected function feeAllowance(string $transactionId, \Payxy\Support\Amount $expected): ?\Payxy\Support\Amount
+    {
+        return \Payxy\Support\Amount::fromMinorUnits((int) ceil($expected->toMinorUnits() * 0.02));   // 2%
+    }
 }
 
 $session = $checkout->start(new CheckoutRequest(email: $email, amount: $amount));   // Initialize
@@ -143,7 +156,12 @@ echo $checkout->renderPage($session);                                           
 
 // callback:
 $result = $checkout->confirm($_SESSION['payxy_transaction_id']);   // Successful / Pending / Failed / AmountMismatch
+$result->amountCheck;                                              // why: Exact, WithinFeeAllowance, Underpaid, …
 ```
+
+`feeAllowance()` defaults to `null`: any surplus without a fee breakdown is an `AmountMismatch`, and underpayment is
+never accepted. Returning an allowance means accepting a payment that exceeds the order by up to that amount, whether
+the surplus is fees or an overpayment. → [Transfers](docs/payment-verification.md#transfers-amount-can-include-fees)
 
 Redirect display is supported. Popup display (Payxy's browser overlay) is **experimental**: it requires an HTTPS page,
 and its framing contract isn't confirmed. → [Hosted Checkout](docs/hosted-checkout.md)
@@ -173,7 +191,7 @@ and its framing contract isn't confirmed. → [Hosted Checkout](docs/hosted-chec
 
 - Public keys authenticate Initialize and VerifyPayment; secret keys sign webhooks; the mode comes from the public key.
 - Initialize: transaction IDs are 6–30 characters; amounts are decimal strings with ≤ 2 decimals; `mode` is deprecated.
-- VerifyPayment returns the financial breakdown and reports state in `responseCode` (`00` / `05` / `02`), with `04` for an unknown ID, all over HTTP 200.
+- VerifyPayment reports state in `responseCode` (`00` / `05` / `02`), with `04` for an unknown ID, all over HTTP 200.
 - GetPaymentInfo returns separate checkout and realtime tokens.
 - Webhooks: `payment.success` / `payment.failed`, HMAC-SHA512 over `timestamp.rawBody`, PascalCase JSON, dual signatures during the 24-hour rotation grace period.
 - IP allowlisting is mode-specific. MakePayment takes an encrypted `payload` wrapper (hence no direct payment here).
@@ -181,10 +199,13 @@ and its framing contract isn't confirmed. → [Hosted Checkout](docs/hosted-chec
 
 **Not yet guaranteed** (the SDK doesn't depend on these, or marks them as experimental):
 
+- That VerifyPayment always returns the fee breakdown with `amount` as the order amount: successful Transfers have been
+  seen with fees included in `amount` and no breakdown (an open question for Payxy; the SDK flags these as
+  `UnexplainedSurplus` unless you set a fee allowance).
+- Initialize's `paymentUrl` always being absolute: the SDK falls back to the environment's checkout URL if it isn't.
 - Hosted Checkout redirect query parameters (use the ID from your session).
 - iframe/popup support and the hosted page's `postMessage` format (popup display is experimental).
 - Webhook retry timing as an SLA.
-- Packagist availability until the public package submission is completed.
 
 ---
 

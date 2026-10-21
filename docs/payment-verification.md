@@ -21,8 +21,11 @@ There is no `caller` parameter: Core no longer accepts it.
 ```php
 $verification = $payxy->payments()->verify($order->payxy_transaction_id);
 
-if ($verification->isPaid() && $verification->amountMatches($order->amount, 'NGN')) {
-    $order->markPaidOnce($verification->getPaymentReference());     // idempotent
+if ($verification->isPaid()) {
+    $check = $verification->checkAmount($order->amount, 'NGN');      // see "Amount comparison"
+    $check->isAcceptable()
+        ? $order->markPaidOnce($verification->getPaymentReference())  // idempotent
+        : $order->flagForReview($check->value);                       // e.g. "underpaid", "unexplained_surplus"
 } elseif ($verification->isPending()) {
     // not final yet: show "processing", re-check later or wait for the webhook
 } else {
@@ -54,7 +57,8 @@ Pending and failed payments are **typed results**, not exceptions. Only a missin
 
 | Getter | Field | Meaning |
 |---|---|---|
-| `getAmount()` | `amount` | Commercial / order amount expected by the merchant |
+| `getAmount()` | `amount` | The commercial order amount **when the fee breakdown is present**. Successful Transfers have been seen without the breakdown and with fees **included** in `amount`; see [Amount comparison](#amount-comparison). |
+| `hasFeeBreakdown()` | `customerPaid` present? | Whether the fee breakdown below was returned, which tells you how to read `amount` |
 | `getCustomerPaid()` | `customerPaid` | Total collected from the customer. Can be **higher** than `amount` when the customer bears fees. |
 | `getAmountPaidToMerchant()` | `amountPaidToMerchant` | Amount credited or due to the merchant |
 | `getProcessingFee()` | `processingFee` | Processing charge, excluding platform VAT |
@@ -68,7 +72,8 @@ Pending and failed payments are **typed results**, not exceptions. Only a missin
 | `getTransactionId()`, `getPaymentReference()`, `getProviderReference()` | | Your ID, Payxy's reference, the processor's reference |
 | `getMaskedCardPan()`, `getCardType()`, `getSessionId()`, `getMerchantId()` | | Empty strings are returned as `null` |
 
-All amounts are `Payxy\Support\Amount` (exact). Core sends them as JSON numbers, e.g. `75000.00`.
+All amounts are `Payxy\Support\Amount` (exact). Core sends them as JSON numbers (`75000.00`) or strings
+(`"101.51"`); both are parsed exactly. Breakdown getters return `null` when Payxy omits the field.
 
 ### Settlement status
 
@@ -81,13 +86,64 @@ hasn't completed**, unless your business specifically requires it.
 
 ## Amount comparison
 
-Compare your order with the **commercial amount**:
+Compare your order amount with the verified payment using `checkAmount()`. It returns an `AmountCheck` that says
+**why** the payment does or doesn't match, so you can log it or route it for review:
 
 ```php
-$verification->amountMatches($expectedOrderAmount, 'NGN');   // compares data.amount (and currency)
+use Payxy\Payments\AmountCheck;
+
+$check = $verification->checkAmount($expectedOrderAmount, 'NGN');   // AmountCheck
+$check->isAcceptable();                                             // true only for Exact / WithinFeeAllowance
+$verification->amountMatches($expectedOrderAmount, 'NGN');          // shorthand for the line above
 ```
 
+| `AmountCheck` | When | Acceptable |
+|---|---|---|
+| `Exact` | `data.amount` equals the order amount (and the currency matches) | ✔ |
+| `WithinFeeAllowance` | **No** fee breakdown, and `data.amount` exceeds the order by no more than the fee allowance **you** passed | ✔ (your business decision) |
+| `Underpaid` | `data.amount` is below the order amount | ✘ never, whatever the allowance |
+| `Overpaid` | The fee breakdown **is** present (so `amount` is the commercial amount) and it exceeds the order | ✘ |
+| `UnexplainedSurplus` | **No** fee breakdown and `data.amount` exceeds the order beyond any allowance | ✘ review it |
+| `CurrencyMismatch` | A different currency, or none reported when you passed one | ✘ |
+| `Missing` | No usable amount (or, in `PayxyCheckout`, an order you don't recognise) | ✘ |
+
 **Never** compare with `customerPaid`: fees borne by the customer make it higher than the order amount.
+
+### Transfers: `amount` can include fees
+
+Payxy doesn't return the same shape for every payment. The live sandbox returns two:
+
+| Response | `amount` | Fee breakdown |
+|---|---|---|
+| Card payments (Core contract), Transfers while Pending / Failed | The order amount | Present (`customerPaid`, `totalCharges`, …) |
+| **Successful Transfer** | **What the customer paid, including fees** (e.g. `101.51` for a ₦100.00 order) | **Missing** |
+
+When the breakdown is missing, a surplus might be the customer's fees **or** an overpayment, and the response can't
+tell them apart. So by default the SDK **doesn't accept it** (`UnexplainedSurplus`), and it never accepts less than
+the order (`Underpaid`). If you're willing to fulfil such payments, pass a **fee allowance**: the most a payment
+may exceed the order when no breakdown is present.
+
+```php
+// Business decision: accept up to 2% above the order when Payxy sends no fee breakdown.
+// Within this allowance an actual overpayment is accepted too.
+$allowance = Amount::fromMinorUnits((int) ceil($order->amount->toMinorUnits() * 0.02));
+
+$verification->checkAmount($order->amount, 'NGN', $allowance);   // WithinFeeAllowance for 101.51 vs 100.00
+```
+
+With the `PayxyCheckout` helper, override `feeAllowance()`; it defaults to `null`, which is strict:
+
+```php
+protected function feeAllowance(string $transactionId, Amount $expected): ?Amount
+{
+    return Amount::fromMinorUnits((int) ceil($expected->toMinorUnits() * 0.02));
+}
+```
+
+`CheckoutResult::$amountCheck` then records which rule applied (`Exact`, `WithinFeeAllowance`, `UnexplainedSurplus`, …).
+
+> **Open question for Payxy:** the inconsistent `amount` meaning and the missing breakdown on successful Transfers.
+> Once Payxy returns the breakdown for every payment, `amount` is always the order amount and no allowance is needed.
 
 ## Retries
 

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Payxy\Payments;
 
 use Payxy\Http\Endpoint;
+use Payxy\Http\Transport;
 use Payxy\Payments\Request\InitializePaymentRequest;
 use Payxy\Payments\Request\VerifyPaymentRequest;
 use Payxy\Payments\Response\InitializePaymentResponse;
 use Payxy\Payments\Response\PaymentInfoResponse;
 use Payxy\Payments\Response\VerifyPaymentResponse;
+use Payxy\PayxyConfig;
 use Payxy\Service\AbstractService;
 
 /**
@@ -23,12 +25,26 @@ final class PaymentsService extends AbstractService
     private const VERIFY_PAYMENT = '/api/Payments/VerifyPayment';
 
     /**
+     * The config supplies the environment's checkout URL used as the paymentUrl fallback.
+     */
+    public function __construct(Transport $transport, private readonly PayxyConfig $config)
+    {
+        parent::__construct($transport);
+    }
+
+    /**
      * Never retried automatically. After an ambiguous failure (TransportException, 5xx) retry
      * with the SAME transactionId; DuplicateTransactionException then means the first call landed.
+     * getPaymentUrl() on the result is always absolute (see InitializePaymentResponse).
      */
     public function initialize(InitializePaymentRequest $request): InitializePaymentResponse
     {
-        return $this->request(Endpoint::post(self::INITIALIZE), InitializePaymentResponse::class, $request);
+        $response = $this->request(Endpoint::post(self::INITIALIZE), InitializePaymentResponse::class, $request);
+        $accessCode = $response->getAccessCode();
+
+        return $accessCode === null || $accessCode === ''
+            ? $response
+            : $response->withFallbackPaymentUrl($this->config->checkoutUrlFor($accessCode));
     }
 
     /**

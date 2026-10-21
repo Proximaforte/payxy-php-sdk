@@ -95,6 +95,12 @@ exit;
 
 `$response->getPaymentUrl()`, `$response->getAccessCode()`, `$response->getResponseCode()` (`"00"`), `$response->getMessage()`.
 
+`getPaymentUrl()` is always an **absolute `https://` URL**, safe for a `Location` header. If Payxy's `paymentUrl` is
+anything else (a bare access code, a relative path, `http://`), the SDK returns the environment's hosted checkout for
+the access code (`https://checkout.payxy.ng/{accessCode}` / `https://checkout.payxy.africa/{accessCode}`).
+`getRawPaymentUrl()` keeps Payxy's original value for diagnostics. `getPaymentUrl()` is `null` only when there is
+neither a usable URL nor an access code.
+
 | Failure | Core response | SDK exception |
 |---|---|---|
 | Duplicate transaction ID | HTTP 400, `{"responseCode":"04","responseMessage":"Transaction id already exists"}` | `DuplicateTransactionException` |

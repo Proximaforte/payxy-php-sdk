@@ -8,3 +8,4 @@ Payxy PHP SDK Core Alignment TODO.md
 /.php-cs-fixer.cache
 /examples/demo/.env
 .claude
+/playground/

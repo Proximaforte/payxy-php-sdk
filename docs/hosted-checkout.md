@@ -43,19 +43,26 @@ $response = $payxy->payments()->initialize(new InitializePaymentRequest(
     currency: 'NGN',
     callbackUrl: 'https://merchant.example.com/payments/payxy/return',
 ));
-header('Location: ' . $response->getPaymentUrl());
+header('Location: ' . $response->getPaymentUrl());   // always an absolute https:// checkout URL
 exit;
 ```
+
+`getPaymentUrl()` never returns a relative path. If Payxy's `paymentUrl` isn't an absolute `https://` URL (for example
+a bare access code), the SDK uses the environment's hosted checkout instead (`https://checkout.payxy.ng/{accessCode}`
+for test keys, `https://checkout.payxy.africa/{accessCode}` for live keys). `getRawPaymentUrl()` returns Payxy's original
+value for logging.
 
 On the callback route:
 
 ```php
 // Wrong: $order->markAsPaid(); because the browser came back
 $verification = $payxy->payments()->verify($_SESSION['payxy_transaction_id']);
-if ($verification->isPaid() && $verification->amountMatches($order->amount, 'NGN')) {
+if ($verification->isPaid() && $verification->checkAmount($order->amount, 'NGN')->isAcceptable()) {
     $order->markAsPaid();
 }
 ```
+
+For bank transfers, read [Transfers: `amount` can include fees](payment-verification.md#transfers-amount-can-include-fees).
 
 ## Option B: the `PayxyCheckout` helper class
 
@@ -77,6 +84,13 @@ final class ShopCheckout extends PayxyCheckout
     protected function expectedAmount(string $transactionId): ?Amount
     {
         return Order::findByPayxyId($transactionId)?->amount;
+    }
+
+    // Optional business decision: how far a payment may exceed the order when Payxy sends no
+    // fee breakdown (successful Transfers include fees in the amount). Default null = strict.
+    protected function feeAllowance(string $transactionId, Amount $expected): ?Amount
+    {
+        return Amount::fromMinorUnits((int) ceil($expected->toMinorUnits() * 0.02));   // 2%
     }
 }
 ```
@@ -125,8 +139,8 @@ match ($result->outcome) {
 
 | Outcome | Rule |
 |---|---|
-| `Successful` | `isPaid()` (`00` + `isSuccessful`) **and** `data.amount` equals `expectedAmount()` (and currency matches) |
-| `AmountMismatch` | Paid, but not the amount or currency you expected, or an unknown order. **Don't fulfil.** |
+| `Successful` | `isPaid()` (`00` + `isSuccessful`) **and** the amount check is acceptable: `data.amount` equals `expectedAmount()` (and the currency matches), or, with no fee breakdown, exceeds it within your `feeAllowance()` |
+| `AmountMismatch` | Paid, but underpaid, overpaid, an unexplained surplus, another currency, or an unknown order. **Don't fulfil.** `$result->amountCheck` says which. |
 | `Pending` | In progress (`05`, or other in-progress codes). Re-check with `confirm()` or wait for the webhook. |
 | `Failed` | Failed or declined, or no payment attempted yet (`04`). `$result->verification` is then `null`. |
 

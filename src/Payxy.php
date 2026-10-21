@@ -62,7 +62,7 @@ final class Payxy
 
     public function payments(): PaymentsService
     {
-        return $this->payments ??= new PaymentsService($this->transport);
+        return $this->payments ??= new PaymentsService($this->transport, $this->config);
     }
 
     /**

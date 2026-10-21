@@ -11,6 +11,7 @@ use Payxy\Exception\InvalidArgumentException;
 use Payxy\Exception\InvalidResponseException;
 use Payxy\Exception\RequestFailedException;
 use Payxy\Exception\WebhookVerificationException;
+use Payxy\Payments\AmountCheck;
 use Payxy\Payments\Model\CheckoutCustomization;
 use Payxy\Payments\Request\InitializePaymentRequest;
 use Payxy\Payments\Response\VerifyPaymentResponse;
@@ -83,6 +84,17 @@ abstract class PayxyCheckout
     abstract protected function expectedAmount(string $transactionId): ?Amount;
 
     /**
+     * How far a payment may exceed the order when Payxy's verify response has no fee breakdown
+     * (successful Transfers report the amount including fees). Default: none, so any surplus is an
+     * AmountMismatch. Returning an allowance is a business decision: within it, an overpayment is
+     * accepted too. Underpayment is never accepted.
+     */
+    protected function feeAllowance(string $transactionId, Amount $expected): ?Amount
+    {
+        return null;
+    }
+
+    /**
      * Server side: creates the payment and returns where to send the customer. Use this on its
      * own for single-page or mobile front ends; return {@see CheckoutSession::toArray()} as JSON.
      */
@@ -111,7 +123,7 @@ abstract class PayxyCheckout
         return new CheckoutSession(
             $transactionId,
             $accessCode,
-            $this->resolveCheckoutUrl($response->getPaymentUrl(), $accessCode),
+            $response->getPaymentUrl() ?? $this->payxy->getConfig()->checkoutUrlFor($accessCode),
             $request->amount,
             $this->currency,
             $request->email,
@@ -195,15 +207,14 @@ abstract class PayxyCheckout
             }
             throw $e;
         }
+        $amountCheck = $verification->isPaid() ? $this->checkAmount($transactionId, $verification) : null;
         $outcome = match (true) {
-            $verification->isPaid() => $this->amountIsExpected($transactionId, $verification)
-                ? CheckoutOutcome::Successful
-                : CheckoutOutcome::AmountMismatch,
+            $amountCheck !== null => $amountCheck->isAcceptable() ? CheckoutOutcome::Successful : CheckoutOutcome::AmountMismatch,
             $verification->isPending() => CheckoutOutcome::Pending,
             default => CheckoutOutcome::Failed,
         };
 
-        return new CheckoutResult($outcome, $transactionId, $verification);
+        return new CheckoutResult($outcome, $transactionId, $verification, $amountCheck);
     }
 
     /**
@@ -218,20 +229,16 @@ abstract class PayxyCheckout
         return $this->callbackUrl;
     }
 
-    private function amountIsExpected(string $transactionId, VerifyPaymentResponse $verification): bool
+    /**
+     * An order we don't recognise is treated like a missing amount: never fulfilled.
+     */
+    private function checkAmount(string $transactionId, VerifyPaymentResponse $verification): AmountCheck
     {
         $expected = $this->expectedAmount($transactionId);
 
-        return $expected !== null && $verification->amountMatches($expected, $this->currency);
-    }
-
-    private function resolveCheckoutUrl(?string $fromGateway, string $accessCode): string
-    {
-        if ($fromGateway !== null && str_starts_with(strtolower($fromGateway), 'https://')) {
-            return $fromGateway;
-        }
-
-        return $this->payxy->getConfig()->checkoutUrlFor($accessCode);
+        return $expected === null
+            ? AmountCheck::Missing
+            : $verification->checkAmount($expected, $this->currency, $this->feeAllowance($transactionId, $expected));
     }
 
     private function customization(): CheckoutCustomization
