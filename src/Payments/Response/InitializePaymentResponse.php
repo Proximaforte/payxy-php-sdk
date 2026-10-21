@@ -6,7 +6,7 @@ namespace Payxy\Payments\Response;
 
 final class InitializePaymentResponse extends PaymentResponse
 {
-    private ?string $fallbackPaymentUrl = null;
+    private ?string $canonicalPaymentUrl = null;
 
     /**
      * Pass to the official browser / mobile SDKs, or store to look the session up later.
@@ -17,15 +17,16 @@ final class InitializePaymentResponse extends PaymentResponse
     }
 
     /**
-     * Payxy's hosted checkout page as an absolute https:// URL: safe to use in a Location header.
-     * A gateway value that isn't an absolute https URL (e.g. a bare access code or a relative path)
-     * is replaced by the environment's checkout URL for the access code; null only when neither exists.
+     * Payxy's hosted checkout page as an absolute https:// URL. When the response carries an
+     * access code, PaymentsService derives this URL from the configured public key instead of
+     * trusting the gateway value: pk_test_ routes to .ng and pk_live_ routes to .africa.
      */
     public function getPaymentUrl(): ?string
     {
         $raw = $this->getRawPaymentUrl();
 
-        return $raw !== null && self::isAbsoluteHttpsUrl($raw) ? $raw : $this->fallbackPaymentUrl;
+        return $this->canonicalPaymentUrl
+            ?? ($raw !== null && self::isAbsoluteHttpsUrl($raw) ? $raw : null);
     }
 
     /**
@@ -37,14 +38,22 @@ final class InitializePaymentResponse extends PaymentResponse
     }
 
     /**
-     * @internal set by PaymentsService from the configured environment
+     * @internal set by PaymentsService from the public key's environment
+     */
+    public function withCanonicalPaymentUrl(string $url): self
+    {
+        $clone = clone $this;
+        $clone->canonicalPaymentUrl = $url;
+
+        return $clone;
+    }
+
+    /**
+     * @internal backward-compatible alias; use withCanonicalPaymentUrl().
      */
     public function withFallbackPaymentUrl(string $url): self
     {
-        $clone = clone $this;
-        $clone->fallbackPaymentUrl = $url;
-
-        return $clone;
+        return $this->withCanonicalPaymentUrl($url);
     }
 
     private static function isAbsoluteHttpsUrl(string $url): bool

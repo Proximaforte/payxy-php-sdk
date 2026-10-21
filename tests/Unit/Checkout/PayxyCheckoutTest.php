@@ -41,11 +41,11 @@ final class PayxyCheckoutTest extends SdkTestCase
         );
     }
 
-    public function testStartUsesThePaymentUrlFromTheGateway(): void
+    public function testStartUsesTheCanonicalUrlForThePublicKeyEnvironment(): void
     {
         $checkout = new ShopCheckout($this->payxy(self::ok(['paymentUrl' => 'https://payxy.ng/pay/checkout/AC1', 'accessCode' => 'AC1'])));
 
-        self::assertSame('https://payxy.ng/pay/checkout/AC1', $checkout->start(self::order())->paymentUrl);
+        self::assertSame('https://checkout.payxy.ng/AC1', $checkout->start(self::order())->paymentUrl);
     }
 
     public function testStartIgnoresAnInsecureCheckoutUrlFromTheGateway(): void

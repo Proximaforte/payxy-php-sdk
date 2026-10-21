@@ -41,8 +41,8 @@ versioning. Upgrade within the 1.x line with `composer update payxy/payxy-php-sd
 ### 1. Configure
 
 ```dotenv
-PAYXY_PUBLIC_KEY=pk_test_xxx# API authentication; pk_live_ for production
-PAYXY_WEBHOOK_SECRET=sk_test_xxx# webhook signatures only; never sent to Payxy
+PAYXY_PUBLIC_KEY=pk_test_xxx          # API authentication; pk_live_ for production
+PAYXY_WEBHOOK_SECRET=sk_test_xxx      # webhook signatures only; never sent to Payxy
 ```
 
 ```php

@@ -47,10 +47,14 @@ header('Location: ' . $response->getPaymentUrl());   // always an absolute https
 exit;
 ```
 
-`getPaymentUrl()` never returns a relative path. If Payxy's `paymentUrl` isn't an absolute `https://` URL (for example
-a bare access code), the SDK uses the environment's hosted checkout instead (`https://checkout.payxy.ng/{accessCode}`
-for test keys, `https://checkout.payxy.africa/{accessCode}` for live keys). `getRawPaymentUrl()` returns Payxy's original
-value for logging.
+`getPaymentUrl()` is derived from the public key and access code, rather than trusting a URL in the API response:
+`pk_test_` uses `https://checkout.payxy.ng/{accessCode}` and `pk_live_` uses
+`https://checkout.payxy.africa/{accessCode}`. `getRawPaymentUrl()` returns Payxy's original value for diagnostics.
+
+If the payment was already initialized by your backend, the browser SDK needs only the matching public key and
+`accessCode`. Do not send amount, email, currency or transaction ID again: those values are already stored against the
+access code in Core. This is different from `POST /api/Payments/Initialize`, which creates the payment and therefore
+requires those commercial fields.
 
 On the callback route:
 
