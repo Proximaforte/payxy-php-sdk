@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Payxy\Payments\Response;
 
+use Payxy\Payments\AmountCheck;
 use Payxy\Payments\SettlementStatus;
 use Payxy\ResponseCode;
 use Payxy\Support\Amount;
 
 /**
  * Canonical state and financial breakdown of a transaction (Core: 00 successful, 05 pending /
- * unknown, 02 failed). Fulfil only when isPaid() is true and amountMatches() your order.
+ * unknown, 02 failed). Fulfil only when isPaid() is true and checkAmount() is acceptable.
  */
 final class VerifyPaymentResponse extends PaymentResponse
 {
@@ -168,19 +169,50 @@ final class VerifyPaymentResponse extends PaymentResponse
     }
 
     /**
-     * Compares the commercial amount (data.amount), never customerPaid, which includes fees.
-     * When an expected currency is supplied, the response must report the same currency.
+     * True when the response carries Payxy's fee breakdown (customerPaid, totalCharges, ...). Then
+     * data.amount is the commercial order amount. Without it (seen on successful Transfers),
+     * data.amount may include the fees the customer paid.
      */
-    public function amountMatches(Amount $expected, ?string $expectedCurrency = null): bool
+    public function hasFeeBreakdown(): bool
+    {
+        return $this->data->get('customerPaid') !== null;
+    }
+
+    /**
+     * Compares the payment with your order amount and says why it does or doesn't match.
+     * Underpayment is never acceptable. A surplus is acceptable only when Payxy sent no fee
+     * breakdown AND it fits within $feeAllowance: passing an allowance is a business decision,
+     * because the surplus may be fees or an overpayment.
+     */
+    public function checkAmount(Amount $expected, ?string $expectedCurrency = null, ?Amount $feeAllowance = null): AmountCheck
     {
         $amount = $this->getAmount();
-        if ($amount === null || !$amount->equals($expected)) {
-            return false;
+        if ($amount === null) {
+            return AmountCheck::Missing;
         }
         $currency = $this->getCurrency();
+        if ($expectedCurrency !== null && ($currency === null || strtoupper($currency) !== strtoupper($expectedCurrency))) {
+            return AmountCheck::CurrencyMismatch;
+        }
 
-        return $expectedCurrency === null
-            || ($currency !== null && strtoupper($currency) === strtoupper($expectedCurrency));
+        $surplus = $amount->toMinorUnits() - $expected->toMinorUnits();
+
+        return match (true) {
+            $surplus === 0 => AmountCheck::Exact,
+            $surplus < 0 => AmountCheck::Underpaid,
+            $this->hasFeeBreakdown() => AmountCheck::Overpaid,
+            $feeAllowance !== null && $surplus <= $feeAllowance->toMinorUnits() => AmountCheck::WithinFeeAllowance,
+            default => AmountCheck::UnexplainedSurplus,
+        };
+    }
+
+    /**
+     * Shorthand for checkAmount(...)->isAcceptable(). Without a fee allowance this requires an
+     * exact match of data.amount (never customerPaid) and, when given, the currency.
+     */
+    public function amountMatches(Amount $expected, ?string $expectedCurrency = null, ?Amount $feeAllowance = null): bool
+    {
+        return $this->checkAmount($expected, $expectedCurrency, $feeAllowance)->isAcceptable();
     }
 
     private function nonEmpty(string $key): ?string

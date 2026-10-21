@@ -40,8 +40,16 @@ final class ShopCheckout extends PayxyCheckout
         return $this;
     }
 
+    /** Business decision under test: how far a no-breakdown payment may exceed the order. */
+    public ?Amount $allowance = null;
+
     protected function expectedAmount(string $transactionId): ?Amount
     {
         return $this->orders[$transactionId] ?? null;
+    }
+
+    protected function feeAllowance(string $transactionId, Amount $expected): ?Amount
+    {
+        return $this->allowance;
     }
 }

@@ -14,6 +14,7 @@ use Payxy\Exception\InvalidArgumentException;
 use Payxy\Exception\InvalidResponseException;
 use Payxy\Exception\RequestFailedException;
 use Payxy\Exception\WebhookVerificationException;
+use Payxy\Payments\AmountCheck;
 use Payxy\Support\Amount;
 use Payxy\Tests\Support\SdkTestCase;
 use Payxy\Tests\Support\ShopCheckout;
@@ -176,6 +177,54 @@ final class PayxyCheckoutTest extends SdkTestCase
 
         self::assertSame(CheckoutOutcome::Failed, $result->outcome);
         self::assertNull($result->verification);
+    }
+
+    /**
+     * Successful Transfer from the sandbox: data.amount (101.51) includes 1.51 in fees and there is
+     * no fee breakdown. The default is strict; accepting it needs an explicit fee allowance.
+     */
+    #[DataProvider('transferAllowances')]
+    public function testTransferIncludingFeesHonoursTheMerchantsFeeAllowance(?string $allowance, CheckoutOutcome $outcome, AmountCheck $check): void
+    {
+        $checkout = new ShopCheckout($this->payxy(self::json(200, ['responseCode' => '00', 'responseMessage' => 'Transaction retrieved successfully', 'data' => [
+            'amount' => '101.51', 'currency' => 'NGN', 'isSuccessful' => true, 'status' => 'Successful', 'paymentType' => 'Transfer',
+            'gatewayResponse' => 'Transaction successful', 'paymentReference' => 'PXF7410228122620261020123941', 'transactionId' => 'BE-2311132FE4808BC2',
+        ]])));
+        $checkout->orders['BE-2311132FE4808BC2'] = Amount::of('100.00');
+        $checkout->allowance = $allowance === null ? null : Amount::of($allowance);
+
+        $result = $checkout->confirm('BE-2311132FE4808BC2');
+
+        self::assertSame($outcome, $result->outcome);
+        self::assertSame($check, $result->amountCheck);
+    }
+
+    /**
+     * @return iterable<string, array{string|null, CheckoutOutcome, AmountCheck}>
+     */
+    public static function transferAllowances(): iterable
+    {
+        yield 'no allowance (default)' => [null, CheckoutOutcome::AmountMismatch, AmountCheck::UnexplainedSurplus];
+        yield 'allowance covers the fee' => ['2.00', CheckoutOutcome::Successful, AmountCheck::WithinFeeAllowance];
+        yield 'allowance too small' => ['1.00', CheckoutOutcome::AmountMismatch, AmountCheck::UnexplainedSurplus];
+    }
+
+    public function testExactPaymentReportsItsAmountCheck(): void
+    {
+        $checkout = new ShopCheckout($this->payxy(self::ok(['isSuccessful' => true, 'amount' => 1500, 'customerPaid' => 1522.5, 'currency' => 'NGN'])));
+        $checkout->orders['ORDER-1'] = Amount::of('1500');
+
+        $result = $checkout->confirm('ORDER-1');
+
+        self::assertSame(AmountCheck::Exact, $result->amountCheck);
+        self::assertTrue($result->isSuccessful());
+    }
+
+    public function testUnpaidResultsCarryNoAmountCheck(): void
+    {
+        $checkout = new ShopCheckout($this->payxy(self::json(200, ['responseCode' => '05', 'responseMessage' => 'x', 'data' => ['status' => 'Pending', 'isSuccessful' => false, 'amount' => 1500]])));
+
+        self::assertNull($checkout->confirm('ORDER-1')->amountCheck);
     }
 
     public function testLiveStatusCodesMapToOutcomes(): void

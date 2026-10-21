@@ -9,11 +9,13 @@ use Payxy\Exception\AuthenticationException;
 use Payxy\Exception\DuplicateTransactionException;
 use Payxy\Exception\RequestFailedException;
 use Payxy\Exception\ValidationException;
+use Payxy\Payments\AmountCheck;
 use Payxy\Payments\Request\InitializePaymentRequest;
 use Payxy\Payments\SettlementStatus;
 use Payxy\ResponseCode;
 use Payxy\Support\Amount;
 use Payxy\Tests\Support\SdkTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Response bodies follow the Payxy Core contract (and live sandbox captures).
@@ -41,6 +43,50 @@ final class PaymentsServiceTest extends SdkTestCase
         self::assertSame('abc123accesscode', $response->getAccessCode());
         self::assertSame(ResponseCode::Successful, $response->responseCode());
         self::assertSame('Authorization URL created', $response->getMessage());
+    }
+
+    /**
+     * Regression: a non-absolute paymentUrl used to reach Location: as-is, sending the browser to
+     * https://<merchant-host>/backend/<code> (404). It must fall back to the environment's checkout.
+     */
+    #[DataProvider('nonAbsolutePaymentUrls')]
+    public function testPaymentUrlIsAlwaysAnAbsoluteHttpsCheckoutUrl(?string $gatewayValue): void
+    {
+        $data = ['accessCode' => 'b317bad87e3375709d5e89a4'] + ($gatewayValue === null ? [] : ['paymentUrl' => $gatewayValue]);
+        $response = $this->payxy(self::ok($data, 'Authorization URL created'))->payments()->initialize(self::initialize());
+
+        self::assertSame('https://checkout.payxy.ng/b317bad87e3375709d5e89a4', $response->getPaymentUrl());
+        self::assertSame($gatewayValue, $response->getRawPaymentUrl(), 'the raw value stays available for diagnostics');
+    }
+
+    /**
+     * @return iterable<string, array{string|null}>
+     */
+    public static function nonAbsolutePaymentUrls(): iterable
+    {
+        yield 'bare access code' => ['b317bad87e3375709d5e89a4'];
+        yield 'relative path' => ['/backend/b317bad87e3375709d5e89a4'];
+        yield 'relative segment' => ['pay/checkout/b317bad87e3375709d5e89a4'];
+        yield 'plain http' => ['http://checkout.payxy.ng/b317bad87e3375709d5e89a4'];
+        yield 'protocol-relative' => ['//evil.example/b317bad87e3375709d5e89a4'];
+        yield 'credentials in url' => ['https://user@evil.example/b317bad87e3375709d5e89a4'];
+        yield 'empty' => [''];
+        yield 'missing' => [null];
+    }
+
+    public function testAbsoluteHttpsPaymentUrlFromPayxyIsKept(): void
+    {
+        $response = $this->payxy(self::ok(['paymentUrl' => 'https://pay.payxy.ng/checkout/ABC123', 'accessCode' => 'ABC123']))
+            ->payments()->initialize(self::initialize());
+
+        self::assertSame('https://pay.payxy.ng/checkout/ABC123', $response->getPaymentUrl());
+    }
+
+    public function testPaymentUrlIsNullWithoutAnAbsoluteUrlOrAccessCode(): void
+    {
+        $response = $this->payxy(self::ok(['paymentUrl' => '/backend/xyz']))->payments()->initialize(self::initialize());
+
+        self::assertNull($response->getPaymentUrl());
     }
 
     public function testDuplicateTransactionIdIsTyped(): void
@@ -158,6 +204,65 @@ final class PaymentsServiceTest extends SdkTestCase
         self::assertTrue($verify->amountMatches(Amount::of('75000'), 'NGN'));
         self::assertFalse($verify->amountMatches(Amount::of('76129'), 'NGN'));
         self::assertFalse($verify->amountMatches(Amount::of('75000'), 'USD'));
+    }
+
+    public function testSurplusWithAFeeBreakdownIsAnOverpaymentEvenWithinAnAllowance(): void
+    {
+        $verify = $this->payxy(self::ok([
+            'amount' => 75000.00, 'customerPaid' => 76129.00, 'totalCharges' => 1129.00, 'currency' => 'NGN', 'isSuccessful' => true,
+        ]))->payments()->verify('ORD-261019-A12BC34D');
+
+        self::assertTrue($verify->hasFeeBreakdown());
+        self::assertSame(AmountCheck::Overpaid, $verify->checkAmount(Amount::of('74000'), 'NGN', Amount::of('5000')));
+        self::assertSame(AmountCheck::Underpaid, $verify->checkAmount(Amount::of('76000'), 'NGN'));
+    }
+
+    /**
+     * Successful Transfer as returned by the Payxy sandbox (personal fields removed): data.amount
+     * is what the customer paid INCLUDING 1.51 in fees, and there is no fee breakdown at all.
+     */
+    private const TRANSFER_SUCCESS = [
+        'responseCode' => '00',
+        'responseMessage' => 'Transaction retrieved successfully',
+        'data' => [
+            'amount' => '101.51', 'currency' => 'NGN', 'isSuccessful' => true, 'status' => 'Successful',
+            'paymentType' => 'Transfer', 'gatewayResponse' => 'Transaction successful',
+            'paymentReference' => 'PXF7410228122620261020123941', 'transactionId' => 'BE-2311132FE4808BC2',
+            'cardPan' => '', 'cardExpiry' => '/',
+        ],
+    ];
+
+    public function testTransferWithFeesIsNotSilentlyAcceptedOrRejectedAsUnderpaid(): void
+    {
+        $verify = $this->payxy(self::json(200, self::TRANSFER_SUCCESS))->payments()->verify('BE-2311132FE4808BC2');
+        $order = Amount::of('100.00');
+
+        self::assertTrue($verify->isPaid());
+        self::assertFalse($verify->hasFeeBreakdown());
+        self::assertNull($verify->getCustomerPaid());
+        self::assertNull($verify->getMaskedCardPan(), 'empty strings are null');
+
+        // Default: the 1.51 surplus can't be attributed to fees, so it is flagged, not accepted.
+        self::assertSame(AmountCheck::UnexplainedSurplus, $verify->checkAmount($order, 'NGN'));
+        self::assertFalse($verify->amountMatches($order, 'NGN'));
+
+        // Merchant opts in to a fee allowance (business decision).
+        self::assertSame(AmountCheck::WithinFeeAllowance, $verify->checkAmount($order, 'NGN', Amount::of('2.00')));
+        self::assertTrue($verify->amountMatches($order, 'NGN', Amount::of('2.00')));
+        self::assertSame(AmountCheck::WithinFeeAllowance, $verify->checkAmount($order, 'NGN', Amount::of('1.51')), 'boundary is inclusive');
+        self::assertSame(AmountCheck::UnexplainedSurplus, $verify->checkAmount($order, 'NGN', Amount::of('1.50')));
+
+        // Underpayment is never acceptable, whatever the allowance.
+        self::assertSame(AmountCheck::Underpaid, $verify->checkAmount(Amount::of('150.00'), 'NGN', Amount::of('100.00')));
+        self::assertSame(AmountCheck::CurrencyMismatch, $verify->checkAmount($order, 'USD', Amount::of('2.00')));
+        self::assertSame(AmountCheck::Exact, $verify->checkAmount(Amount::of('101.51'), 'NGN'));
+    }
+
+    public function testMissingAmountIsNeverAcceptable(): void
+    {
+        $verify = $this->payxy(self::ok(['isSuccessful' => true, 'currency' => 'NGN']))->payments()->verify('ORD-1');
+
+        self::assertSame(AmountCheck::Missing, $verify->checkAmount(Amount::of('100'), 'NGN', Amount::of('5')));
     }
 
     public function testAmountComparisonFailsWhenAnExpectedCurrencyIsNotReported(): void
