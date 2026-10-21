@@ -74,12 +74,13 @@ final class PaymentsServiceTest extends SdkTestCase
         yield 'missing' => [null];
     }
 
-    public function testAbsoluteHttpsPaymentUrlFromPayxyIsKept(): void
+    public function testPaymentUrlIsCanonicalForThePublicKeyEnvironment(): void
     {
         $response = $this->payxy(self::ok(['paymentUrl' => 'https://pay.payxy.ng/checkout/ABC123', 'accessCode' => 'ABC123']))
             ->payments()->initialize(self::initialize());
 
-        self::assertSame('https://pay.payxy.ng/checkout/ABC123', $response->getPaymentUrl());
+        self::assertSame('https://checkout.payxy.ng/ABC123', $response->getPaymentUrl());
+        self::assertSame('https://pay.payxy.ng/checkout/ABC123', $response->getRawPaymentUrl());
     }
 
     public function testPaymentUrlIsNullWithoutAnAbsoluteUrlOrAccessCode(): void

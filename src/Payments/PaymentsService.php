@@ -27,7 +27,7 @@ final class PaymentsService extends AbstractService
     /**
      * The config supplies the environment's checkout URL used as the paymentUrl fallback.
      */
-    public function __construct(Transport $transport, private readonly PayxyConfig $config)
+    public function __construct(Transport $transport, private readonly ?PayxyConfig $config = null)
     {
         parent::__construct($transport);
     }
@@ -42,9 +42,9 @@ final class PaymentsService extends AbstractService
         $response = $this->request(Endpoint::post(self::INITIALIZE), InitializePaymentResponse::class, $request);
         $accessCode = $response->getAccessCode();
 
-        return $accessCode === null || $accessCode === ''
+        return $accessCode === null || $accessCode === '' || $this->config === null
             ? $response
-            : $response->withFallbackPaymentUrl($this->config->checkoutUrlFor($accessCode));
+            : $response->withCanonicalPaymentUrl($this->config->checkoutUrlFor($accessCode));
     }
 
     /**
