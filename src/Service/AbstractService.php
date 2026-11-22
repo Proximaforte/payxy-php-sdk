@@ -32,8 +32,9 @@ abstract class AbstractService
         ?RequestPayload $payload = null,
         array $pathParams = [],
         array $query = [],
+        ?string $idempotencyKey = null,
     ): PayxyResponse {
-        $result = $this->transport->send($endpoint, $pathParams, $query, $payload?->toPayload());
+        $result = $this->transport->send($endpoint, $pathParams, $query, $payload?->toPayload(), $idempotencyKey);
 
         return $responseClass::fromResult($result);
     }

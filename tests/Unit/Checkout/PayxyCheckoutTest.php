@@ -8,6 +8,7 @@ use Payxy\Checkout\CheckoutDisplay;
 use Payxy\Checkout\CheckoutOutcome;
 use Payxy\Checkout\CheckoutRequest;
 use Payxy\Checkout\CheckoutSession;
+use Payxy\Checkout\PayxyCheckout;
 use Payxy\Environment;
 use Payxy\Exception\ConfigurationException;
 use Payxy\Exception\InvalidArgumentException;
@@ -29,7 +30,7 @@ final class PayxyCheckoutTest extends SdkTestCase
         $session = $checkout->start(new CheckoutRequest('ada@example.com', Amount::of('2500'), 'ORDER-9'));
 
         $body = $this->http->lastJsonBody();
-        self::assertSame('https://shop.example.com/payxy/callback', $body['callbackUrl']);
+        self::assertSame('https://shop.example.com/payxy/callback?transactionId=ORDER-9', $body['callbackUrl']);
         self::assertSame('#0A84FF', $body['buttonColor']);
         self::assertSame('#F7F9FC', $body['bodyColor']);
         self::assertSame('2500.00', $body['amount']);
@@ -39,6 +40,22 @@ final class PayxyCheckoutTest extends SdkTestCase
             ['transactionId' => 'ORDER-9', 'accessCode' => 'AC 1', 'paymentUrl' => 'https://checkout.payxy.ng/AC%201', 'amount' => '2500.00', 'currency' => 'NGN', 'environment' => 'staging'],
             $session->toArray(),
         );
+    }
+
+    public function testStartKeepsAnExistingQueryStringWhenAddingTheTransactionId(): void
+    {
+        $checkout = new class ($this->payxy(self::ok(['accessCode' => 'AC1']))) extends PayxyCheckout {
+            protected string $callbackUrl = 'https://shop.example.com/cb?src=web';
+
+            protected function expectedAmount(string $transactionId): ?Amount
+            {
+                return null;
+            }
+        };
+
+        $checkout->start(new CheckoutRequest('ada@example.com', Amount::of('2500'), 'ORDER A/1'));
+
+        self::assertSame('https://shop.example.com/cb?src=web&transactionId=ORDER%20A%2F1', $this->http->lastJsonBody()['callbackUrl']);
     }
 
     public function testStartUsesTheCanonicalUrlForThePublicKeyEnvironment(): void
@@ -261,8 +278,20 @@ final class PayxyCheckoutTest extends SdkTestCase
 
         $result = $checkout->handleWebhook($body, hash_hmac('sha512', $timestamp . '.' . $body, self::WEBHOOK_SECRET), $timestamp);
 
-        self::assertSame(CheckoutOutcome::Successful, $result->outcome);
+        self::assertSame(CheckoutOutcome::Successful, $result?->outcome);
         self::assertSame(['transactionId' => 'TXN-20260706-0001'], $this->http->lastJsonBody());
+    }
+
+    public function testNonPaymentWebhookEventsAreIgnoredWithoutCallingTheApi(): void
+    {
+        $checkout = new ShopCheckout($this->payxy());
+        $body = '{"Event":"settlement.completed","Data":{"SettlementReference":"STL-1"}}';
+        $timestamp = (string) time();
+
+        $result = $checkout->handleWebhook($body, hash_hmac('sha512', $timestamp . '.' . $body, self::WEBHOOK_SECRET), $timestamp);
+
+        self::assertNull($result);
+        self::assertSame([], $this->http->requests);
     }
 
     public function testUnsignedWebhookNeverReachesTheApi(): void

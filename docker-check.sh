@@ -15,7 +15,7 @@ for v in $VERSIONS; do
   # Resolve dependencies for this PHP version in an isolated copy (never touches ./vendor).
   docker run --rm -v "$PWD":/src:ro -v "$vol":/work -w /work composer:2 sh -euc "
     find /work -mindepth 1 -maxdepth 1 ! -name vendor -exec rm -rf {} +
-    cp -r /src/src /src/tests /src/config /src/resources /src/composer.json /src/phpunit.xml.dist \
+    cp -r /src/src /src/tests /src/contract /src/config /src/resources /src/composer.json /src/phpunit.xml.dist \
           /src/phpstan.neon.dist /src/.php-cs-fixer.dist.php /work/
     composer config platform.php $v.0
     composer update --no-interaction --no-progress -q"

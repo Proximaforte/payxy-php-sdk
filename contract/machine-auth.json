@@ -1,0 +1,114 @@
+{
+  "publicKey": "pk_test_0123456789abcdef",
+  "secretKey": "sk_test_fedcba9876543210",
+  "tokenLifetimeSeconds": 900,
+  "scenarios": [
+    {
+      "name": "a missing secret key fails on the call, before any request",
+      "secretKey": null,
+      "script": [],
+      "steps": [{ "call": "wallet.balance" }],
+      "error": "Credentials",
+      "requests": []
+    },
+    {
+      "name": "payments keep sending the public key directly and need no secret key",
+      "secretKey": null,
+      "script": [{ "status": 200, "body": { "responseCode": "00", "data": { "isSuccessful": true } } }],
+      "steps": [{ "call": "payments.verify" }],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/Payments/VerifyPayment",
+          "headers": { "Authorization": "Bearer pk_test_0123456789abcdef" }
+        }
+      ]
+    },
+    {
+      "name": "exchanges the key pair once and reuses the token",
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "refreshToken": "r-t1", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "balance": { "availableBalance": "10" } } } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "balance": { "availableBalance": "10" } } } }
+      ],
+      "steps": [{ "call": "wallet.balance" }, { "call": "wallet.balance" }],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/oauth/token",
+          "headers": { "Authorization": null },
+          "body": { "grantType": "client_credentials", "clientId": "pk_test_0123456789abcdef", "clientSecret": "sk_test_fedcba9876543210" }
+        },
+        { "method": "GET", "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t1" } },
+        { "method": "GET", "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t1" } }
+      ]
+    },
+    {
+      "name": "refreshes an expired token with the refresh token",
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "refreshToken": "r-t1", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": {} } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t2", "refreshToken": "r-t2", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": {} } }
+      ],
+      "steps": [{ "call": "wallet.balance" }, { "advanceSeconds": 900 }, { "call": "wallet.balance" }],
+      "requests": [
+        { "path": "/api/v1/oauth/token", "body": { "grantType": "client_credentials", "clientId": "pk_test_0123456789abcdef", "clientSecret": "sk_test_fedcba9876543210" } },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t1" } },
+        { "path": "/api/v1/oauth/token", "headers": { "Authorization": null }, "body": { "grantType": "refresh_token", "refreshToken": "r-t1" } },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t2" } }
+      ]
+    },
+    {
+      "name": "falls back to the key pair when the refresh token is rejected",
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "refreshToken": "r-t1", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": {} } },
+        { "status": 401, "body": { "responseCode": "01", "responseMessage": "revoked" } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t3", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": {} } }
+      ],
+      "steps": [{ "call": "wallet.balance" }, { "advanceSeconds": 900 }, { "call": "wallet.balance" }],
+      "requests": [
+        { "path": "/api/v1/oauth/token" },
+        { "path": "/api/v1/wallet/balance" },
+        { "path": "/api/v1/oauth/token", "body": { "grantType": "refresh_token", "refreshToken": "r-t1" } },
+        { "path": "/api/v1/oauth/token", "body": { "grantType": "client_credentials", "clientId": "pk_test_0123456789abcdef", "clientSecret": "sk_test_fedcba9876543210" } },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t3" } }
+      ]
+    },
+    {
+      "name": "retries once with a new token when the API rejects the current one",
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "expiresIn": 900 } } },
+        { "status": 401, "body": { "responseCode": "01" } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t2", "expiresIn": 900 } } },
+        { "status": 200, "body": { "responseCode": "00", "data": {} } }
+      ],
+      "steps": [{ "call": "wallet.balance" }],
+      "requests": [
+        { "path": "/api/v1/oauth/token" },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t1" } },
+        { "path": "/api/v1/oauth/token" },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t2" } }
+      ]
+    },
+    {
+      "name": "gives up after a second rejection",
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "expiresIn": 900 } } },
+        { "status": 401, "body": { "responseCode": "01" } },
+        { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t2", "expiresIn": 900 } } },
+        { "status": 401, "body": { "responseCode": "01" } }
+      ],
+      "steps": [{ "call": "wallet.balance" }],
+      "error": "Authentication",
+      "requests": [
+        { "path": "/api/v1/oauth/token" },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t1" } },
+        { "path": "/api/v1/oauth/token" },
+        { "path": "/api/v1/wallet/balance", "headers": { "Authorization": "Bearer t2" } }
+      ]
+    }
+  ]
+}

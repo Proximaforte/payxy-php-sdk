@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Payxy\Http;
 
+use Closure;
 use JsonException;
+use Payxy\Auth\AccessTokenProvider;
 use Payxy\Exception\ApiException;
+use Payxy\Exception\InvalidArgumentException;
 use Payxy\Exception\InvalidResponseException;
 use Payxy\Exception\TransportException;
 use Payxy\Payxy;
@@ -35,8 +38,18 @@ final class Transport
     private const ERROR_EXCERPT_BYTES = 1024;
     private const REQUEST_ID_HEADERS = ['X-Request-Id', 'Request-Id', 'X-Correlation-Id'];
 
+    private const IDEMPOTENCY_KEY_PATTERN = '/^[\x21-\x7E]{1,100}$/';
+
     private readonly string $userAgent;
 
+    private readonly AccessTokenProvider $tokens;
+
+    /** @var Closure(): int */
+    private readonly Closure $clock;
+
+    /**
+     * @param (Closure(): int)|null $clock current Unix time; injectable for tests
+     */
     public function __construct(
         private readonly PayxyConfig $config,
         private readonly ClientInterface $client,
@@ -44,15 +57,23 @@ final class Transport
         private readonly StreamFactoryInterface $streamFactory,
         private readonly LoggerInterface $logger,
         private readonly Sleeper $sleeper,
+        ?Closure $clock = null,
     ) {
         $this->userAgent = \sprintf('payxy-php-sdk/%s PHP/%s', Payxy::VERSION, \PHP_VERSION)
             . ($config->userAgentSuffix !== null ? ' ' . $config->userAgentSuffix : '');
+        $this->clock = $clock ?? time(...);
+        $this->tokens = new AccessTokenProvider(
+            $config,
+            fn(Endpoint $endpoint, array $body): ApiResult => $this->send($endpoint, body: $body),
+            $this->clock,
+        );
     }
 
     /**
      * @param array<string, string> $pathParams
      * @param array<string, string> $query
      * @param array<array-key, mixed>|null $body
+     * @param string|null $idempotencyKey required by endpoints that move money; reused unchanged on every retry
      */
     public function send(
         Endpoint $endpoint,
@@ -60,15 +81,22 @@ final class Transport
         array $query = [],
         #[SensitiveParameter]
         ?array $body = null,
+        ?string $idempotencyKey = null,
     ): ApiResult {
+        if ($endpoint->requiresIdempotencyKey && preg_match(self::IDEMPOTENCY_KEY_PATTERN, $idempotencyKey ?? '') !== 1) {
+            throw InvalidArgumentException::forField('idempotencyKey', 'is required and must be 1-100 printable ASCII characters');
+        }
+
         $url = $this->config->baseUrl . $endpoint->resolvePath($pathParams)
             . ($query === [] ? '' : '?' . http_build_query($query, '', '&', \PHP_QUERY_RFC3986));
         $encodedBody = $endpoint->method->hasBody() ? $this->encode($body ?? []) : null;
 
         $retries = 0;
+        $reauthenticated = false;
+        $token = $endpoint->tokenAuth ? $this->tokens->accessToken() : null;
 
         while (true) {
-            $request = $this->buildRequest($endpoint, $url, $encodedBody);
+            $request = $this->buildRequest($endpoint, $url, $encodedBody, $token, $idempotencyKey);
             $startedAt = hrtime(true);
 
             try {
@@ -95,6 +123,15 @@ final class Transport
                 return $this->success($endpoint, $response);
             }
 
+            // A token can be revoked before it expires; a rejected request was not processed,
+            // so one retry with a fresh token is safe.
+            if ($status === 401 && $token !== null && !$reauthenticated) {
+                $reauthenticated = true;
+                $this->tokens->invalidate($token);
+                $token = $this->tokens->accessToken();
+                continue;
+            }
+
             $retryAfter = $this->retryAfterSeconds($response);
             if ($this->config->retryPolicy->shouldRetryStatus($endpoint, $status, $retries)) {
                 $this->sleeper->sleep($this->config->retryPolicy->delayMs($retries++, $retryAfter));
@@ -107,14 +144,26 @@ final class Transport
         }
     }
 
-    private function buildRequest(Endpoint $endpoint, string $url, #[SensitiveParameter] ?string $body): RequestInterface
-    {
+    private function buildRequest(
+        Endpoint $endpoint,
+        string $url,
+        #[SensitiveParameter]
+        ?string $body,
+        #[SensitiveParameter]
+        ?string $token,
+        ?string $idempotencyKey,
+    ): RequestInterface {
         $request = $this->requestFactory->createRequest($endpoint->method->value, $url)
             ->withHeader('Accept', 'application/json')
             ->withHeader('User-Agent', $this->userAgent);
 
-        if ($endpoint->requiresAuthentication) {
+        if ($token !== null) {
+            $request = $request->withHeader('Authorization', 'Bearer ' . $token);
+        } elseif ($endpoint->requiresAuthentication) {
             $request = $request->withHeader('Authorization', 'Bearer ' . $this->config->publicKey->value());
+        }
+        if ($endpoint->requiresIdempotencyKey && $idempotencyKey !== null) {
+            $request = $request->withHeader('Idempotency-Key', $idempotencyKey);
         }
 
         if ($body === null) {
@@ -171,7 +220,9 @@ final class Transport
         $code = $body['responseCode'] ?? null;
         $carriesRecord = $endpoint->codeIsStatus && \is_array($body['data'] ?? null) && $body['data'] !== [];
 
-        if (\is_string($code) && $code !== self::SUCCESS_CODE && !$carriesRecord) {
+        $accepted = \is_string($code) && \in_array($code, $endpoint->acceptedCodes, true);
+
+        if (\is_string($code) && $code !== self::SUCCESS_CODE && !$carriesRecord && !$accepted) {
             throw ApiException::fromResponse($status, $body, $this->requestId($response), null);
         }
 
@@ -245,7 +296,7 @@ final class Transport
         }
         $date = strtotime($value);
 
-        return $date === false ? null : max(0, $date - time());
+        return $date === false ? null : max(0, $date - ($this->clock)());
     }
 
     private function log(string $level, string $message, Endpoint $endpoint, ?int $status, int $retries, int|float $startedAt): void
