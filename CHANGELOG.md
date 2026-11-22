@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.3...v1.1.0) (2026-11-22)
+
+
+### Features
+
+* money movement: virtual accounts, wallet balance, payouts, sandbox simulator, providers, webhook history and resend
+* payout transaction status query (TSQ) with `payouts()->tsq()`
+* machine authentication: the public and secret key are exchanged for a cached, auto-refreshing access token
+* typed webhook events for `payment.received`, `settlement.completed`, `settlement.failed`, `virtual_account.created` and `virtual_account.failed`, plus event id, delivery id, version and occurred-at
+* checkout `start()` appends the transaction id to the callback URL
+
+### Changed
+
+* `PayxyCheckout::handleWebhook()` returns `null` for events other than `payment.success` and `payment.failed`
+* webhook verification accepts a payload with no `Mode`, and requires `Data.TransactionId` only on payment events
+
 ## [1.0.3](https://github.com/Proximaforte/payxy-php-sdk/compare/v1.0.2...v1.0.3) (2026-10-21)
 
 
