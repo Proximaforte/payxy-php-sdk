@@ -106,7 +106,8 @@ abstract class PayxyCheckout
             email: $request->email,
             amount: $request->amount,
             transactionId: $transactionId,
-            callbackUrl: $this->callbackUrl(),
+            // Payxy redirects to this URL as given, so the transaction id has to be in it.
+            callbackUrl: CheckoutRenderer::completeUrl($this->callbackUrl(), $transactionId),
             currency: $this->currency,
             metadata: $request->metadata,
             productId: $request->productId,
@@ -178,11 +179,16 @@ abstract class PayxyCheckout
     /**
      * Call from your webhook route with the raw body and the x-payxy-* headers. The signature
      * is checked first (WebhookVerificationException → answer 401/400); then, as with the
-     * callback, the outcome comes from Verify Payment, not from the webhook payload.
+     * callback, the outcome comes from Verify Payment, not from the webhook payload. Returns null
+     * for events that are not payment.success or payment.failed (settlement, virtual account, ...);
+     * read those from {@see \Payxy\Payxy::webhooks()} directly.
      */
-    public function handleWebhook(string $rawBody, ?string $signature, ?string $timestamp): CheckoutResult
+    public function handleWebhook(string $rawBody, ?string $signature, ?string $timestamp, ?string $attempt = null): ?CheckoutResult
     {
-        $event = $this->payxy->webhooks()->constructEvent($rawBody, $signature, $timestamp);
+        $event = $this->payxy->webhooks()->constructEvent($rawBody, $signature, $timestamp, $attempt);
+        if (!$event->isPaymentSuccess() && !$event->isPaymentFailed()) {
+            return null;
+        }
         $transactionId = $event->getTransactionId()
             ?? throw new WebhookVerificationException('Webhook payload has no Data.TransactionId.');
 

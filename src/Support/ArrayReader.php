@@ -88,6 +88,18 @@ final readonly class ArrayReader
     }
 
     /**
+     * The first object or list found under any of the given keys.
+     *
+     * @return array<array-key, mixed>|null
+     */
+    public function record(string ...$keys): ?array
+    {
+        $value = $this->get(...$keys);
+
+        return \is_array($value) ? $value : null;
+    }
+
+    /**
      * @param array<array-key, mixed> $data
      */
     private static function find(array $data, string $key): mixed

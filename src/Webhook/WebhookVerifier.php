@@ -95,14 +95,17 @@ final class WebhookVerifier
             throw new WebhookVerificationException('Webhook Event is missing or malformed.');
         }
 
-        $mode = $payload['Mode'] ?? null;
-        if (!\is_string($mode) || !\in_array($mode, ['Test', 'Production'], true)) {
-            throw new WebhookVerificationException('Webhook Mode must be Test or Production.');
-        }
+        // Some events carry no Mode. The signature already binds the environment, so only a wrong one is rejected.
+        if (\array_key_exists('Mode', $payload)) {
+            $mode = $payload['Mode'];
+            if (!\is_string($mode) || !\in_array($mode, ['Test', 'Production'], true)) {
+                throw new WebhookVerificationException('Webhook Mode must be Test or Production.');
+            }
 
-        $expectedMode = $this->secret->environment() === Environment::Sandbox ? 'Test' : 'Production';
-        if ($mode !== $expectedMode) {
-            throw new WebhookVerificationException('Webhook Mode does not match the configured webhook secret.');
+            $expectedMode = $this->secret->environment() === Environment::Sandbox ? 'Test' : 'Production';
+            if ($mode !== $expectedMode) {
+                throw new WebhookVerificationException('Webhook Mode does not match the configured webhook secret.');
+            }
         }
 
         $data = $payload['Data'] ?? null;
@@ -110,9 +113,13 @@ final class WebhookVerifier
             throw new WebhookVerificationException('Webhook Data is missing or malformed.');
         }
 
-        $transactionId = $data['TransactionId'] ?? null;
-        if (!\is_string($transactionId) || trim($transactionId) === '') {
-            throw new WebhookVerificationException('Webhook Data.TransactionId is missing or malformed.');
+        // Payment events are reconciled by your reference. Other event types identify themselves
+        // differently (settlement, virtual account) and may carry no TransactionId.
+        if (\in_array($event, [WebhookEvent::PAYMENT_SUCCESS, WebhookEvent::PAYMENT_FAILED], true)) {
+            $transactionId = $data['TransactionId'] ?? null;
+            if (!\is_string($transactionId) || trim($transactionId) === '') {
+                throw new WebhookVerificationException('Webhook Data.TransactionId is missing or malformed.');
+            }
         }
     }
 

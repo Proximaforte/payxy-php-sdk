@@ -1,0 +1,428 @@
+{
+  "testKeys": { "publicKey": "pk_test_0123456789abcdef", "secretKey": "sk_test_fedcba9876543210" },
+  "liveKeys": { "publicKey": "pk_live_0123456789abcdef", "secretKey": "sk_live_fedcba9876543210" },
+  "token": { "status": 200, "body": { "responseCode": "00", "data": { "accessToken": "t1", "expiresIn": 900 } } },
+  "cases": [
+    {
+      "name": "creates a static account with KYC and metadata",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-123",
+      "args": {
+        "provider": "VFD",
+        "accountType": "STATIC",
+        "customer": {
+          "reference": "cust-1", "firstName": "Ada", "lastName": "Okafor", "email": "ada@example.com",
+          "phone": "+2348012345678", "bvn": "12345678901", "dateOfBirth": "1990-01-01"
+        },
+        "metadata": { "source": "console" }
+      },
+      "script": [
+        {
+          "status": 201,
+          "body": {
+            "responseCode": "09", "responseMessage": "Virtual account created successfully",
+            "data": {
+              "id": "va-1", "provider": "VFD", "account_type": "STATIC", "currency": "NGN",
+              "account_number": "1000000001", "account_name": "Ada Okafor", "bank_name": "VFD",
+              "bank_code": "090110", "customer_reference": "cust-1", "status": "ACTIVE"
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/virtual-accounts",
+          "headers": { "Idempotency-Key": "key-123", "Authorization": "Bearer t1" },
+          "body": {
+            "provider": "VFD", "accountType": "STATIC", "currency": "NGN",
+            "customer": {
+              "reference": "cust-1", "firstName": "Ada", "lastName": "Okafor", "email": "ada@example.com",
+              "phone": "+2348012345678", "bvn": "12345678901", "dateOfBirth": "1990-01-01"
+            },
+            "metadata": { "source": "console" }
+          }
+        }
+      ],
+      "result": {
+        "id": "va-1", "accountNumber": "1000000001", "accountName": "Ada Okafor", "bankName": "VFD",
+        "bankCode": "090110", "customerReference": "cust-1", "accountType": "STATIC", "status": "ACTIVE",
+        "isIdempotentReplay": false, "expectedAmount": null
+      }
+    },
+    {
+      "name": "a replayed idempotency key returns the original account",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-123",
+      "args": {
+        "provider": "OPTIMUS", "accountType": "STATIC",
+        "customer": { "reference": "cust-1", "firstName": "Ada", "lastName": "Okafor", "bvn": "12345678901", "dateOfBirth": "1990-01-01" }
+      },
+      "script": [
+        { "status": 200, "body": { "responseCode": "00", "data": { "account_number": "9336452277", "idempotent_replay": true } } }
+      ],
+      "requests": [{ "method": "POST", "path": "/api/v1/virtual-accounts" }],
+      "result": { "accountNumber": "9336452277", "isIdempotentReplay": true }
+    },
+    {
+      "name": "creates a dynamic account with a numeric amount and an ISO expiry",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-456",
+      "args": {
+        "provider": "OPTIMUS", "accountType": "DYNAMIC", "expiresAt": "2026-12-01T00:00:00Z", "expectedAmount": "2500.50",
+        "customer": { "reference": "order-1", "firstName": "Ada", "lastName": "Okafor" },
+        "metadata": { "orderId": "order-123" }
+      },
+      "script": [
+        {
+          "status": 201,
+          "body": {
+            "responseCode": "09",
+            "data": { "account_number": "8151111035", "account_type": "DYNAMIC", "expected_amount": 2500, "expires_at": "2026-12-01T00:00:00Z", "status": "ACTIVE" }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/virtual-accounts",
+          "body": {
+            "provider": "OPTIMUS", "accountType": "DYNAMIC", "currency": "NGN",
+            "expiresAt": "2026-12-01T00:00:00Z", "expectedAmount": 2500.5,
+            "customer": { "reference": "order-1", "firstName": "Ada", "lastName": "Okafor" },
+            "metadata": { "orderId": "order-123" }
+          }
+        }
+      ],
+      "result": { "accountNumber": "8151111035", "accountType": "DYNAMIC", "expectedAmount": "2500.00", "expiresAt": "2026-12-01T00:00:00Z" }
+    },
+    {
+      "name": "a confirmed provider rejection is terminal and is not retried",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-789",
+      "maxRetries": 2,
+      "args": {
+        "provider": "VFD", "accountType": "STATIC",
+        "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901", "dateOfBirth": "1990-01-01" }
+      },
+      "script": [
+        { "status": 422, "body": { "responseCode": "02", "responseMessage": "VFD returned HTTP 400", "data": { "code": "PROVIDER_ERROR", "retryable": false } } }
+      ],
+      "requests": [{ "path": "/api/v1/virtual-accounts" }],
+      "error": "Validation"
+    },
+    {
+      "name": "an existing static account is a conflict",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-790",
+      "args": {
+        "provider": "VFD", "accountType": "STATIC",
+        "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901", "dateOfBirth": "1990-01-01" }
+      },
+      "script": [
+        { "status": 409, "body": { "responseCode": "02", "responseMessage": "A VFD static account already exists for this BVN", "data": { "code": "ACCOUNT_ALREADY_EXISTS" } } }
+      ],
+      "requests": [{ "path": "/api/v1/virtual-accounts" }],
+      "error": "Conflict"
+    },
+    {
+      "name": "an uncertain 503 is retried with the same idempotency key",
+      "call": "virtualAccounts.create",
+      "idempotencyKey": "key-503",
+      "maxRetries": 1,
+      "args": {
+        "provider": "VFD", "accountType": "STATIC",
+        "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901", "dateOfBirth": "1990-01-01" }
+      },
+      "script": [
+        { "status": 503, "body": {} },
+        { "status": 201, "body": { "responseCode": "09", "data": { "account_number": "1" } } }
+      ],
+      "requests": [
+        { "path": "/api/v1/virtual-accounts", "headers": { "Idempotency-Key": "key-503" } },
+        { "path": "/api/v1/virtual-accounts", "headers": { "Idempotency-Key": "key-503" } }
+      ],
+      "result": { "accountNumber": "1" }
+    },
+    {
+      "name": "sends a live payout with a numeric amount",
+      "keys": "live",
+      "call": "payouts.create",
+      "idempotencyKey": "payout-1",
+      "args": {
+        "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "bankName": "GTBank",
+        "amount": "5000.00", "narration": "Vendor payment", "transactionPin": "1234"
+      },
+      "script": [{ "status": 202, "body": { "responseCode": "05", "data": { "id": "po_1", "status": "PROCESSING" } } }],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/payouts",
+          "headers": { "Idempotency-Key": "payout-1", "Authorization": "Bearer t1" },
+          "body": {
+            "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "bankName": "GTBank",
+            "amount": 5000, "narration": "Vendor payment", "transactionPin": "1234"
+          }
+        }
+      ],
+      "result": { "id": "po_1", "status": "PROCESSING" }
+    },
+    {
+      "name": "payouts are refused locally with test keys",
+      "call": "payouts.create",
+      "idempotencyKey": "payout-2",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" },
+      "script": [],
+      "requests": [],
+      "error": "Configuration"
+    },
+    {
+      "name": "only the documented code counts as success for payouts",
+      "keys": "live",
+      "call": "payouts.create",
+      "idempotencyKey": "payout-3",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" },
+      "script": [{ "status": 200, "body": { "responseCode": "09", "data": {} } }],
+      "requests": [{ "path": "/api/v1/payouts" }],
+      "error": "RequestFailed"
+    },
+    {
+      "name": "looks up a payout by an encoded id",
+      "keys": "live",
+      "call": "payouts.get",
+      "args": { "id": "po 1" },
+      "script": [{ "status": 200, "body": { "responseCode": "00", "data": { "id": "po 1", "status": "SUCCESS", "amount": "5000" } } }],
+      "requests": [{ "method": "GET", "path": "/api/v1/payouts/po%201" }],
+      "result": { "id": "po 1", "status": "SUCCESS", "amount": "5000.00" }
+    },
+    {
+      "name": "queries a payout status by its original reference",
+      "keys": "live",
+      "call": "payouts.tsq",
+      "args": { "reference": "merchant-payout-20261106-001" },
+      "script": [{ "status": 200, "body": { "responseCode": "00", "data": { "id": "po_1", "status": "SUCCESS", "amount": "5000" } } }],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/payouts/tsq",
+          "headers": { "Authorization": "Bearer t1", "Idempotency-Key": null },
+          "body": { "reference": "merchant-payout-20261106-001" }
+        }
+      ],
+      "result": { "id": "po_1", "status": "SUCCESS", "amount": "5000.00" }
+    },
+    {
+      "name": "a payout still being processed is a usable status",
+      "keys": "live",
+      "call": "payouts.tsq",
+      "args": { "reference": "merchant-payout-20261106-002" },
+      "script": [{ "status": 202, "body": { "responseCode": "05", "data": { "id": "po_2", "status": "PROCESSING" } } }],
+      "requests": [{ "method": "POST", "path": "/api/v1/payouts/tsq", "body": { "reference": "merchant-payout-20261106-002" } }],
+      "result": { "id": "po_2", "status": "PROCESSING" }
+    },
+    {
+      "name": "an unknown or cross-merchant reference is not found",
+      "keys": "live",
+      "call": "payouts.tsq",
+      "args": { "reference": "nobody-owns-this" },
+      "script": [{ "status": 404, "body": { "responseCode": "03", "responseMessage": "Payout not found", "data": { "code": "PAYOUT_NOT_FOUND" } } }],
+      "requests": [{ "path": "/api/v1/payouts/tsq" }],
+      "error": "NotFound"
+    },
+    {
+      "name": "a status query is read-only, so a transient 503 is retried",
+      "keys": "live",
+      "call": "payouts.tsq",
+      "maxRetries": 1,
+      "args": { "reference": "merchant-payout-20261106-003" },
+      "script": [
+        { "status": 503, "body": {} },
+        { "status": 200, "body": { "responseCode": "00", "data": { "id": "po_3", "status": "SUCCESS" } } }
+      ],
+      "requests": [
+        { "path": "/api/v1/payouts/tsq", "body": { "reference": "merchant-payout-20261106-003" } },
+        { "path": "/api/v1/payouts/tsq", "body": { "reference": "merchant-payout-20261106-003" } }
+      ],
+      "result": { "id": "po_3", "status": "SUCCESS" }
+    },
+    {
+      "name": "simulates a test credit",
+      "call": "simulator.creditVirtualAccount",
+      "idempotencyKey": "sim-1",
+      "args": { "accountNumber": "1000000001", "amount": "2500.00", "senderName": "Sandbox Customer" },
+      "script": [
+        { "status": 202, "body": { "responseCode": "05", "data": { "event_id": "evt_1", "payment_reference": "PXY-1", "status": "QUEUED" } } }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/simulator/virtual-account-credits",
+          "headers": { "Idempotency-Key": "sim-1" },
+          "body": { "accountNumber": "1000000001", "amount": 2500, "currency": "NGN", "senderName": "Sandbox Customer" }
+        }
+      ],
+      "result": { "eventId": "evt_1", "paymentReference": "PXY-1", "status": "QUEUED" }
+    },
+    {
+      "name": "the simulator is refused locally with live keys",
+      "keys": "live",
+      "call": "simulator.creditVirtualAccount",
+      "idempotencyKey": "sim-2",
+      "args": { "accountNumber": "1000000001", "amount": "1.00" },
+      "script": [],
+      "requests": [],
+      "error": "Configuration"
+    },
+    {
+      "name": "reads the nested wallet record as exact money",
+      "call": "wallet.balance",
+      "script": [
+        {
+          "status": 200,
+          "body": {
+            "responseCode": "00",
+            "data": { "currency": "NGN", "balance": { "walletId": 482, "balance": "100", "ledgerBalance": "125.50", "availableBalance": "100" } }
+          }
+        }
+      ],
+      "requests": [{ "method": "GET", "path": "/api/v1/wallet/balance" }],
+      "result": { "balance": "100.00", "availableBalance": "100.00", "ledgerBalance": "125.50", "walletId": "482", "currency": "NGN" }
+    },
+    {
+      "name": "lists providers from the documented envelope",
+      "call": "providers.list",
+      "script": [
+        {
+          "status": 200,
+          "body": {
+            "responseCode": "00",
+            "data": {
+              "currency": "NGN",
+              "providers": [
+                { "code": "VFD", "account_types": ["STATIC", "DYNAMIC"], "enabled": true, "status": "AVAILABLE" },
+                { "code": "OPTIMUS", "account_types": ["STATIC", "DYNAMIC"], "enabled": true, "status": "AVAILABLE" }
+              ]
+            }
+          }
+        }
+      ],
+      "requests": [{ "method": "GET", "path": "/api/v1/providers" }],
+      "result": { "providers#count": 2, "providers[0].code": "VFD", "providers[1].code": "OPTIMUS" }
+    },
+    {
+      "name": "lists providers when data is a bare array",
+      "call": "providers.list",
+      "script": [{ "status": 200, "body": { "responseCode": "00", "data": [{ "code": "VFD" }] } }],
+      "requests": [{ "path": "/api/v1/providers" }],
+      "result": { "providers#count": 1, "providers[0].code": "VFD" }
+    },
+    {
+      "name": "types webhook events and their delivery attempts",
+      "call": "webhookEvents.list",
+      "args": {},
+      "script": [
+        {
+          "status": 200,
+          "body": {
+            "responseCode": "00",
+            "data": [
+              {
+                "eventId": "evt_7ad5", "eventType": "settlement.completed", "version": "1.0",
+                "occurredAtUtc": "2026-11-05T10:16:02Z",
+                "deliveries": [
+                  { "deliveryId": "dlv_1", "attempt": 1, "status": "Failed", "httpStatusCode": 500, "completedAtUtc": "2026-11-05T10:16:03Z" },
+                  { "deliveryId": "dlv_2", "attempt": 2, "status": "Delivered", "httpStatusCode": 200, "completedAtUtc": "2026-11-05T10:17:03Z" }
+                ]
+              },
+              { "eventId": "evt_new", "eventType": "payment.received", "deliveries": [] }
+            ]
+          }
+        }
+      ],
+      "requests": [{ "method": "GET", "path": "/api/v1/webhook-events" }],
+      "result": {
+        "events#count": 2,
+        "events[0].eventId": "evt_7ad5",
+        "events[0].eventType": "settlement.completed",
+        "events[0].version": "1.0",
+        "events[0].occurredAt": "2026-11-05T10:16:02.000Z",
+        "events[0].deliveries#count": 2,
+        "events[0].deliveries[0].isDelivered": false,
+        "events[0].deliveries[1].deliveryId": "dlv_2",
+        "events[0].deliveries[1].attempt": 2,
+        "events[0].deliveries[1].status": "Delivered",
+        "events[0].deliveries[1].httpStatusCode": 200,
+        "events[0].deliveries[1].completedAt": "2026-11-05T10:17:03.000Z",
+        "events[0].deliveries[1].isDelivered": true,
+        "events[0].wasDelivered": true,
+        "events[1].deliveries#count": 0,
+        "events[1].wasDelivered": false
+      }
+    },
+    {
+      "name": "passes webhook history query parameters through",
+      "call": "webhookEvents.list",
+      "args": { "query": { "limit": "10" } },
+      "script": [{ "status": 200, "body": { "responseCode": "00", "data": [] } }],
+      "requests": [{ "method": "GET", "path": "/api/v1/webhook-events?limit=10" }],
+      "result": { "events#count": 0 }
+    },
+    {
+      "name": "resends an event once, with no idempotency key",
+      "call": "webhookEvents.resend",
+      "args": { "eventId": "evt_1" },
+      "script": [{ "status": 202, "body": { "responseCode": "05", "data": { "event_id": "evt_1", "status": "QUEUED" } } }],
+      "requests": [
+        { "method": "POST", "path": "/api/v1/webhook-events/evt_1/resend", "headers": { "Idempotency-Key": null } }
+      ],
+      "result": { "eventId": "evt_1", "status": "QUEUED" }
+    },
+    {
+      "name": "resending an unknown event is not found",
+      "call": "webhookEvents.resend",
+      "args": { "eventId": "evt_nope" },
+      "script": [{ "status": 404, "body": { "responseCode": "03", "responseMessage": "Webhook event was not found" } }],
+      "requests": [{ "path": "/api/v1/webhook-events/evt_nope/resend" }],
+      "error": "NotFound"
+    }
+  ],
+  "invalid": [
+    { "name": "dynamic without an expiry", "field": "expiresAt", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "DYNAMIC", "expectedAmount": "10.00", "customer": { "reference": "c", "firstName": "A", "lastName": "B" } } },
+    { "name": "dynamic without an expected amount", "field": "expectedAmount", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "DYNAMIC", "expiresAt": "2026-12-01T00:00:00Z", "customer": { "reference": "c", "firstName": "A", "lastName": "B" } } },
+    { "name": "a currency other than NGN", "field": "currency", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "STATIC", "currency": "USD", "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901", "dateOfBirth": "1990-01-01" } } },
+    { "name": "static without a BVN", "field": "customer.bvn", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "STATIC", "customer": { "reference": "c", "firstName": "A", "lastName": "B", "dateOfBirth": "1990-01-01" } } },
+    { "name": "static without a date of birth", "field": "customer.dateOfBirth", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "STATIC", "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901" } } },
+    { "name": "a BVN that is too short", "field": "customer.bvn", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "STATIC", "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "123", "dateOfBirth": "1990-01-01" } } },
+    { "name": "a date of birth in the wrong format", "field": "customer.dateOfBirth", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "STATIC", "customer": { "reference": "c", "firstName": "A", "lastName": "B", "bvn": "12345678901", "dateOfBirth": "01-06-1999" } } },
+    { "name": "a customer without a first name", "field": "customer.firstName", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "DYNAMIC", "expiresAt": "2026-12-01T00:00:00Z", "expectedAmount": "10.00", "customer": { "reference": "c", "lastName": "B" } } },
+    { "name": "a customer without a last name", "field": "customer.lastName", "call": "virtualAccounts.create",
+      "args": { "provider": "VFD", "accountType": "DYNAMIC", "expiresAt": "2026-12-01T00:00:00Z", "expectedAmount": "10.00", "customer": { "reference": "c", "firstName": "A" } } },
+    { "name": "a payout account number that is too short", "field": "accountNumber", "keys": "live", "call": "payouts.create",
+      "args": { "accountNumber": "123", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" } },
+    { "name": "a status query without a reference", "field": "reference", "keys": "live", "call": "payouts.tsq",
+      "args": { "reference": " " } },
+    { "name": "a payout of zero", "field": "amount", "keys": "live", "call": "payouts.create",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "0" } },
+    { "name": "a payout bank code with letters", "field": "bankCode", "keys": "live", "call": "payouts.create",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "ab", "amount": "5000.00" } },
+    { "name": "a simulated credit of zero", "field": "amount", "call": "simulator.creditVirtualAccount",
+      "args": { "accountNumber": "1000000001", "amount": "0" } },
+    { "name": "a simulated credit to a short account number", "field": "accountNumber", "call": "simulator.creditVirtualAccount",
+      "args": { "accountNumber": "100", "amount": "1.00" } },
+    { "name": "an empty idempotency key", "field": "idempotencyKey", "idempotencyKey": "", "call": "payouts.create", "keys": "live",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" } },
+    { "name": "an idempotency key with a space", "field": "idempotencyKey", "idempotencyKey": "bad key", "call": "payouts.create", "keys": "live",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" } },
+    { "name": "an idempotency key over 100 characters", "field": "idempotencyKey", "call": "payouts.create", "keys": "live",
+      "idempotencyKey": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "args": { "accountNumber": "0123456789", "accountName": "Ada Okafor", "bankCode": "000013", "amount": "5000.00" } }
+  ]
+}

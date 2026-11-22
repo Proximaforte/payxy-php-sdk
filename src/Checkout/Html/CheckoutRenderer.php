@@ -101,7 +101,12 @@ final class CheckoutRenderer
             : '';
     }
 
-    private static function completeUrl(string $callbackUrl, string $transactionId): string
+    /**
+     * The callback URL with the transaction id appended, as Payxy redirects to it exactly as given.
+     *
+     * @internal
+     */
+    public static function completeUrl(string $callbackUrl, string $transactionId): string
     {
         return $callbackUrl . (str_contains($callbackUrl, '?') ? '&' : '?') . 'transactionId=' . rawurlencode($transactionId);
     }

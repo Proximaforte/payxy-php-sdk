@@ -7,4 +7,4 @@ namespace Payxy\Exception;
 /**
  * Raised when the SDK is constructed with an unusable configuration.
  */
-final class ConfigurationException extends InvalidArgumentException {}
+class ConfigurationException extends InvalidArgumentException {}

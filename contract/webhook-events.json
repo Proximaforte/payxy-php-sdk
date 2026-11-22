@@ -1,0 +1,272 @@
+{
+  "secret": "sk_test_fedcba9876543210",
+  "now": 1792400000,
+  "events": [
+    {
+      "name": "payment.success with the full envelope",
+      "payload": {
+        "EventId": "evt_b5376d49e4764fc292819875f34af326", "DeliveryId": "dlv_18dfffb564084373b31fe05d24adbb40",
+        "Version": "1.0", "OccurredAtUtc": "2026-11-05T10:30:25.125Z", "MerchantId": 351, "Event": "payment.success",
+        "Mode": "Test",
+        "Data": {
+          "Amount": 15000.00, "CustomerPaid": 15161.25, "AmountPaidToMerchant": 15000.00, "FeeBearer": "Customer",
+          "ProcessingFee": 150.00, "PlatformVat": 11.25, "MerchantVat": 0.00, "TotalCharges": 161.25,
+          "SettlementStatus": "NotCreated", "PaymentType": "Transfer", "Currency": "NGN", "Status": "Successful",
+          "IsSuccessful": true, "GatewayResponse": "Transaction successful",
+          "TransactionId": "MERCHANT-TXN-20261105-001", "PaymentReference": "PXY-8837261",
+          "ProviderReference": "VFD-72819364", "MerchantId": 351, "OriginatorBank": "Access Bank",
+          "OriginatorName": "John Doe", "OriginatorAccount": "0123456789", "SessionId": "100004261105103025837462"
+        }
+      },
+      "expect": {
+        "event": "payment.success", "eventId": "evt_b5376d49e4764fc292819875f34af326",
+        "deliveryId": "dlv_18dfffb564084373b31fe05d24adbb40", "version": "1.0",
+        "occurredAt": "2026-11-05T10:30:25.125Z",
+        "idempotencyKey": "evt_b5376d49e4764fc292819875f34af326",
+        "isPaymentSuccess": true, "isPaymentReceived": false,
+        "amount": "15000.00", "customerPaid": "15161.25", "amountPaidToMerchant": "15000.00", "totalCharges": "161.25",
+        "currency": "NGN", "paymentType": "Transfer", "paymentReference": "PXY-8837261",
+        "paymentReceived": null, "settlement": null, "virtualAccount": null
+      }
+    },
+    {
+      "name": "the legacy reduced card payload with string amounts",
+      "payload": {
+        "EventId": "evt_3a50979313db482895a7bca6f57fc438", "DeliveryId": "dlv_94dbc8fdb25c4663a22db61b0967a552",
+        "Version": "1.0", "OccurredAtUtc": "2026-11-05T10:40:00Z", "MerchantId": 351, "Event": "payment.success",
+        "Mode": "Test",
+        "Data": {
+          "Amount": "15000.00", "PaymentType": "Card", "Currency": "NGN", "Status": "Successful", "IsSuccessful": true,
+          "GatewayResponse": "Approved", "TransactionId": "MERCHANT-TXN-20261105-003", "ProductId": null,
+          "PaymentDate": null, "Histories": null, "PaymentReference": "PXY-8837263", "RecurringID": null,
+          "CardPan": "539983******1234", "CardType": "Verve", "SessionId": "CHAMS-9374628"
+        }
+      },
+      "expect": {
+        "event": "payment.success", "amount": "15000.00", "customerPaid": null, "amountPaidToMerchant": null,
+        "paymentReference": "PXY-8837263", "occurredAt": "2026-11-05T10:40:00.000Z"
+      }
+    },
+    {
+      "name": "payment.received for a dynamic account",
+      "payload": {
+        "EventId": "evt_01JBY7Y0F7BRKPXFVNQ8J2T91A", "DeliveryId": "dlv_01JBY7Y1AR8SMH36HQ0T76WAZP", "Version": "1.0",
+        "OccurredAtUtc": "2026-11-05T10:30:25.125Z", "MerchantId": 351, "Event": "payment.received", "Mode": "Test",
+        "Data": {
+          "PaymentReference": "PXY-PAY-8837261", "TransactionId": "MERCHANT-TXN-20261105-001",
+          "ProviderReference": "VFD-72819364", "Provider": "VFD", "PaymentType": "Transfer", "Currency": "NGN",
+          "ActualAmount": 15000.00, "ExpectedAmount": 15000.00, "AmountClassification": "EXACT",
+          "TimingClassification": "ON_TIME", "SettlementStatus": "Pending", "VirtualAccountId": "va_01JBY7WWEQTY6RKJD74Q66NT98",
+          "AccountNumber": "1000123456", "AccountType": "DYNAMIC", "AccountExpiresAtUtc": "2026-11-05T11:00:00Z",
+          "ProviderPaymentAtUtc": "2026-11-05T10:29:58Z", "ReceivedAtUtc": "2026-11-05T10:30:25.125Z",
+          "OriginatorBank": "Access Bank", "OriginatorName": "John Doe", "OriginatorAccount": "0123******89",
+          "SessionId": "100004261105103025837462"
+        }
+      },
+      "expect": {
+        "event": "payment.received", "isPaymentReceived": true, "isPaymentSuccess": false,
+        "idempotencyKey": "evt_01JBY7Y0F7BRKPXFVNQ8J2T91A", "settlement": null, "virtualAccount": null,
+        "paymentReceived.paymentReference": "PXY-PAY-8837261", "paymentReceived.transactionId": "MERCHANT-TXN-20261105-001",
+        "paymentReceived.provider": "VFD", "paymentReceived.paymentType": "Transfer",
+        "paymentReceived.actualAmount": "15000.00", "paymentReceived.expectedAmount": "15000.00",
+        "paymentReceived.amountClassification": "EXACT", "paymentReceived.timingClassification": "ON_TIME",
+        "paymentReceived.settlementStatus": "Pending", "paymentReceived.virtualAccountId": "va_01JBY7WWEQTY6RKJD74Q66NT98",
+        "paymentReceived.accountNumber": "1000123456", "paymentReceived.accountType": "DYNAMIC",
+        "paymentReceived.accountExpiresAt": "2026-11-05T11:00:00.000Z",
+        "paymentReceived.providerPaymentAt": "2026-11-05T10:29:58.000Z",
+        "paymentReceived.receivedAt": "2026-11-05T10:30:25.125Z",
+        "paymentReceived.originatorAccount": "0123******89",
+        "paymentReceived.isExactAmount": true, "paymentReceived.isUnderpaid": false,
+        "paymentReceived.isOverpaid": false, "paymentReceived.isAmountMismatch": false,
+        "paymentReceived.isLatePayment": false
+      }
+    },
+    {
+      "name": "payment.received for a static account has no expectations",
+      "payload": {
+        "EventId": "evt_static", "DeliveryId": "dlv_1", "Version": "1.0", "OccurredAtUtc": "2026-11-05T10:30:25Z",
+        "MerchantId": 351, "Event": "payment.received", "Mode": "Test",
+        "Data": {
+          "ActualAmount": 900.5, "ExpectedAmount": null, "AmountClassification": "NOT_APPLICABLE",
+          "TimingClassification": "LATE", "AccountType": "STATIC", "AccountExpiresAtUtc": null
+        }
+      },
+      "expect": {
+        "paymentReceived.actualAmount": "900.50", "paymentReceived.expectedAmount": null,
+        "paymentReceived.accountExpiresAt": null, "paymentReceived.transactionId": null,
+        "paymentReceived.isLatePayment": true, "paymentReceived.isAmountMismatch": false
+      }
+    },
+    {
+      "name": "an underpaid, late payment, and the older classification names",
+      "payload": {
+        "EventId": "evt_under", "Version": "1.0", "MerchantId": 351, "Event": "payment.received", "Mode": "Test",
+        "Data": { "ActualAmount": 100.00, "AmountClassification": "UNDERPAID", "TimingClassification": "LATE" }
+      },
+      "expect": {
+        "paymentReceived.isUnderpaid": true, "paymentReceived.isOverpaid": false,
+        "paymentReceived.isAmountMismatch": true, "paymentReceived.isLatePayment": true,
+        "paymentReceived.isExactAmount": false
+      }
+    },
+    {
+      "name": "an overpaid payment",
+      "payload": {
+        "EventId": "evt_over", "Version": "1.0", "MerchantId": 351, "Event": "payment.received", "Mode": "Test",
+        "Data": { "AmountClassification": "OVERPAID", "TimingClassification": "ON_TIME" }
+      },
+      "expect": { "paymentReceived.isOverpaid": true, "paymentReceived.isAmountMismatch": true, "paymentReceived.isLatePayment": false }
+    },
+    {
+      "name": "the older classification names are still understood",
+      "payload": {
+        "EventId": "evt_old", "Version": "1.0", "MerchantId": 351, "Event": "payment.received", "Mode": "Test",
+        "Data": { "AmountClassification": "AMOUNT_MISMATCH", "TimingClassification": "LATE_PAYMENT" }
+      },
+      "expect": { "paymentReceived.isAmountMismatch": true, "paymentReceived.isLatePayment": true, "paymentReceived.isExactAmount": false }
+    },
+    {
+      "name": "settlement.completed",
+      "payload": {
+        "EventId": "evt_01JBY80N8VYEPJVA7N46Q8XC61", "DeliveryId": "dlv_01JBY80PZ27RR4S8DFBBM2YZBE", "Version": "1.0",
+        "OccurredAtUtc": "2026-11-05T10:32:10.511Z", "MerchantId": 351, "Event": "settlement.completed", "Mode": "Test",
+        "Data": {
+          "SettlementReference": "STL-20261105-000891", "PaymentReference": "PXY-PAY-8837261",
+          "TransactionId": "MERCHANT-TXN-20261105-001", "ProviderReference": "VFD-72819364",
+          "WalletCreditReference": "WCR-934817263", "WalletId": "wallet_351_ngn", "Currency": "NGN",
+          "ReceivedAmount": 15000.00, "ProcessorChargeAmount": 50.00, "PayxyChargeAmount": 100.00, "VatAmount": 7.50,
+          "MerchantSettlementAmount": 14842.50, "SettlementStatus": "Completed", "CompletedAtUtc": "2026-11-05T10:32:10.511Z"
+        }
+      },
+      "expect": {
+        "isSettlementCompleted": true, "isSettlementFailed": false, "paymentReceived": null, "virtualAccount": null,
+        "settlement.settlementReference": "STL-20261105-000891", "settlement.paymentReference": "PXY-PAY-8837261",
+        "settlement.walletCreditReference": "WCR-934817263", "settlement.walletId": "wallet_351_ngn",
+        "settlement.receivedAmount": "15000.00", "settlement.processorChargeAmount": "50.00",
+        "settlement.payxyChargeAmount": "100.00", "settlement.vatAmount": "7.50",
+        "settlement.merchantSettlementAmount": "14842.50", "settlement.settlementStatus": "Completed",
+        "settlement.completedAt": "2026-11-05T10:32:10.511Z", "settlement.failureCode": null
+      }
+    },
+    {
+      "name": "settlement.failed",
+      "payload": {
+        "EventId": "evt_01JBY84A8P0N7E6RYARCSFG4TQ", "DeliveryId": "dlv_1", "Version": "1.0",
+        "OccurredAtUtc": "2026-11-05T10:35:42.027Z", "MerchantId": 351, "Event": "settlement.failed", "Mode": "Test",
+        "Data": {
+          "SettlementReference": "STL-20261105-000892", "MerchantSettlementAmount": 24737.50, "SettlementStatus": "Failed",
+          "FailureCode": "WALLET_CREDIT_FAILED", "FailureMessage": "Merchant wallet could not be credited",
+          "RetryCount": 3, "IsTerminal": true, "FailedAtUtc": "2026-11-05T10:35:42.027Z"
+        }
+      },
+      "expect": {
+        "isSettlementFailed": true, "isSettlementCompleted": false,
+        "settlement.settlementStatus": "Failed", "settlement.merchantSettlementAmount": "24737.50",
+        "settlement.failureCode": "WALLET_CREDIT_FAILED", "settlement.failureMessage": "Merchant wallet could not be credited",
+        "settlement.retryCount": 3, "settlement.isTerminal": true, "settlement.failedAt": "2026-11-05T10:35:42.027Z",
+        "settlement.completedAt": null
+      }
+    },
+    {
+      "name": "virtual_account.created for a dynamic account",
+      "payload": {
+        "EventId": "evt_01JBY88WMZGE6DY4EK34GK7HJM", "DeliveryId": "dlv_1", "Version": "1.0",
+        "OccurredAtUtc": "2026-11-05T10:40:12.210Z", "MerchantId": 351, "Event": "virtual_account.created", "Mode": "Test",
+        "Data": {
+          "CreationOperationId": "vac_01JBY87JHK2MRMYE80AM0GWGR3", "VirtualAccountId": "va_01JBY88TPF0YJJ6XQ9WBQ0HVM4",
+          "MerchantReference": "ORDER-20261105-1001", "Provider": "VFD", "ProviderReference": "VFD-VA-72819364",
+          "AccountType": "DYNAMIC", "AccountName": "PAYXY JOHN DOE", "AccountNumber": "1000123456",
+          "BankName": "VFD Microfinance Bank", "BankCode": "566", "Currency": "NGN", "ExpectedAmount": 15000.00,
+          "ExpiresAtUtc": "2026-11-05T11:40:00Z", "Status": "ACTIVE", "CreatedAtUtc": "2026-11-05T10:40:12.210Z"
+        }
+      },
+      "expect": {
+        "isVirtualAccountCreated": true, "isVirtualAccountFailed": false, "paymentReceived": null, "settlement": null,
+        "virtualAccount.creationOperationId": "vac_01JBY87JHK2MRMYE80AM0GWGR3",
+        "virtualAccount.virtualAccountId": "va_01JBY88TPF0YJJ6XQ9WBQ0HVM4",
+        "virtualAccount.merchantReference": "ORDER-20261105-1001", "virtualAccount.provider": "VFD",
+        "virtualAccount.accountType": "DYNAMIC", "virtualAccount.accountName": "PAYXY JOHN DOE",
+        "virtualAccount.accountNumber": "1000123456", "virtualAccount.bankName": "VFD Microfinance Bank",
+        "virtualAccount.bankCode": "566", "virtualAccount.expectedAmount": "15000.00",
+        "virtualAccount.expiresAt": "2026-11-05T11:40:00.000Z", "virtualAccount.status": "ACTIVE",
+        "virtualAccount.createdAt": "2026-11-05T10:40:12.210Z", "virtualAccount.failureCode": null
+      }
+    },
+    {
+      "name": "virtual_account.created for a static account",
+      "payload": {
+        "EventId": "evt_static_va", "Version": "1.0", "MerchantId": 351, "Event": "virtual_account.created", "Mode": "Test",
+        "Data": { "AccountType": "STATIC", "ExpectedAmount": null, "ExpiresAtUtc": null, "AccountNumber": "1000123457" }
+      },
+      "expect": {
+        "virtualAccount.accountType": "STATIC", "virtualAccount.expectedAmount": null, "virtualAccount.expiresAt": null,
+        "virtualAccount.accountNumber": "1000123457"
+      }
+    },
+    {
+      "name": "virtual_account.failed",
+      "payload": {
+        "EventId": "evt_01JBY8CFAQSM2GRZN0DVRNS48T", "DeliveryId": "dlv_1", "Version": "1.0",
+        "OccurredAtUtc": "2026-11-05T10:45:20.718Z", "MerchantId": 351, "Event": "virtual_account.failed", "Mode": "Test",
+        "Data": {
+          "CreationOperationId": "vac_01JBY8B901HGRM5AF26Z8Y2AVC", "MerchantReference": "ORDER-20261105-1002",
+          "Provider": "OPTIMUS", "ProviderReference": null, "AccountType": "DYNAMIC", "Currency": "NGN",
+          "ExpectedAmount": 25000.00, "ExpiresAtUtc": "2026-11-05T11:45:00Z", "Status": "FAILED",
+          "FailureCode": "PROVIDER_ACCOUNT_CREATION_FAILED", "FailureMessage": "The provider could not create the virtual account",
+          "IsTerminal": true, "FailedAtUtc": "2026-11-05T10:45:20.718Z"
+        }
+      },
+      "expect": {
+        "isVirtualAccountFailed": true, "isVirtualAccountCreated": false,
+        "virtualAccount.status": "FAILED", "virtualAccount.providerReference": null,
+        "virtualAccount.failureCode": "PROVIDER_ACCOUNT_CREATION_FAILED",
+        "virtualAccount.failureMessage": "The provider could not create the virtual account",
+        "virtualAccount.isTerminal": true, "virtualAccount.failedAt": "2026-11-05T10:45:20.718Z",
+        "virtualAccount.virtualAccountId": null
+      }
+    },
+    {
+      "name": "an unknown event type is kept as sent",
+      "payload": {
+        "EventId": "evt_payout", "Version": "1.0", "MerchantId": 351, "Event": "payout.success", "Mode": "Test",
+        "Data": { "PayoutId": "po_1" }
+      },
+      "expect": {
+        "event": "payout.success", "idempotencyKey": "evt_payout", "paymentReceived": null, "settlement": null,
+        "virtualAccount": null
+      }
+    },
+    {
+      "name": "an older payload without an EventId falls back to the event name and your reference",
+      "payload": {
+        "MerchantId": 351, "Event": "payment.failed", "Mode": "Test",
+        "Data": { "TransactionId": "ORD-123456", "IsSuccessful": false }
+      },
+      "expect": { "idempotencyKey": "payment.failed:ORD-123456", "eventId": null, "deliveryId": null, "occurredAt": null }
+    }
+  ],
+  "verification": {
+    "accepted": [
+      { "name": "a virtual account event needs no TransactionId",
+        "payload": { "Event": "virtual_account.created", "Mode": "Test", "Data": { "AccountNumber": "1" } } },
+      { "name": "a settlement event needs no TransactionId",
+        "payload": { "Event": "settlement.completed", "Mode": "Test", "Data": {} } },
+      { "name": "an unknown event is accepted",
+        "payload": { "Event": "payout.success", "Mode": "Test", "Data": {} } },
+      { "name": "an older payload with no Mode is accepted, because the signature already proves the environment",
+        "payload": { "Event": "payment.success", "Data": { "TransactionId": "ORD-123456" } } }
+    ],
+    "rejected": [
+      { "name": "payment.success without a TransactionId", "message": "Data.TransactionId",
+        "payload": { "Event": "payment.success", "Mode": "Test", "Data": {} } },
+      { "name": "payment.failed with an empty TransactionId", "message": "Data.TransactionId",
+        "payload": { "Event": "payment.failed", "Mode": "Test", "Data": { "TransactionId": "" } } },
+      { "name": "no Event", "message": "Event", "payload": { "Mode": "Test", "Data": { "TransactionId": "x" } } },
+      { "name": "no Data", "message": "Data", "payload": { "Event": "payment.success", "Mode": "Test" } },
+      { "name": "a Mode that is not Test or Production", "message": "Mode",
+        "payload": { "Event": "payment.success", "Mode": "Staging", "Data": { "TransactionId": "x" } } },
+      { "name": "a Production Mode with a test secret", "message": "Mode",
+        "payload": { "Event": "payment.success", "Mode": "Production", "Data": { "TransactionId": "x" } } }
+    ]
+  }
+}
