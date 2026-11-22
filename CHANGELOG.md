@@ -10,6 +10,12 @@
 * machine authentication: the public and secret key are exchanged for a cached, auto-refreshing access token
 * typed webhook events for `payment.received`, `settlement.completed`, `settlement.failed`, `virtual_account.created` and `virtual_account.failed`, plus event id, delivery id, version and occurred-at
 * checkout `start()` appends the transaction id to the callback URL
+* `WebhookEvent::hasIdentity()` is false for the empty older-format copy Payxy sends beside some events, such as `virtual_account.created`
+
+### Bug Fixes
+
+* webhook history records are read as the API returns them: `getEventType()` reads `event`, and `getDeliveryStatus()`, `getAttemptCount()`, `getNextAttemptAt()`, `getResourceReference()` and `lastAttempt()` are new, so `wasDelivered()` is correct
+* webhook payload keys are matched without regard to case, so Payxy's endpoint verification ping is accepted instead of being rejected with 401
 
 ### Changed
 
