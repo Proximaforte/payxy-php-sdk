@@ -360,6 +360,52 @@
       }
     },
     {
+      "name": "reads the webhook history as the API returns it",
+      "call": "webhookEvents.list",
+      "args": {},
+      "script": [
+        {
+          "status": 200,
+          "body": {
+            "responseCode": "00",
+            "data": [
+              {
+                "eventId": "evt_sim_1", "event": "payment.success", "occurredAt": "2026-11-22T17:29:04.459487Z",
+                "deliveryStatus": "DELIVERED", "attemptCount": 1, "resourceReference": "sim:2779:sim-1",
+                "lastAttempt": { "at": "2026-11-22T17:29:22.519912Z", "outcome": "SUCCESS", "httpStatusCode": 200, "trigger": "MANUAL" }
+              },
+              {
+                "eventId": "evt_va_1", "event": "virtual_account.created", "occurredAt": "2026-11-22T17:29:02Z",
+                "deliveryStatus": "RETRYING", "attemptCount": 0, "nextAttemptAt": "2026-11-22T17:30:02Z", "virtualAccountId": "1176"
+              }
+            ]
+          }
+        }
+      ],
+      "requests": [{ "method": "GET", "path": "/api/v1/webhook-events" }],
+      "result": {
+        "events#count": 2,
+        "events[0].eventId": "evt_sim_1",
+        "events[0].eventType": "payment.success",
+        "events[0].occurredAt": "2026-11-22T17:29:04.459Z",
+        "events[0].deliveryStatus": "DELIVERED",
+        "events[0].attemptCount": 1,
+        "events[0].resourceReference": "sim:2779:sim-1",
+        "events[0].wasDelivered": true,
+        "events[0].lastAttempt.status": "SUCCESS",
+        "events[0].lastAttempt.httpStatusCode": 200,
+        "events[0].lastAttempt.trigger": "MANUAL",
+        "events[0].lastAttempt.isDelivered": true,
+        "events[0].lastAttempt.completedAt": "2026-11-22T17:29:22.519Z",
+        "events[1].eventType": "virtual_account.created",
+        "events[1].deliveryStatus": "RETRYING",
+        "events[1].attemptCount": 0,
+        "events[1].nextAttemptAt": "2026-11-22T17:30:02Z",
+        "events[1].wasDelivered": false,
+        "events[1].lastAttempt": null
+      }
+    },
+    {
       "name": "passes webhook history query parameters through",
       "call": "webhookEvents.list",
       "args": { "query": { "limit": "10" } },

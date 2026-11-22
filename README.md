@@ -513,7 +513,7 @@ The signature, timestamp and attempt come from the `x-payxy-signature`, `x-payxy
 2. The body is at most 1 MiB (measured in bytes).
 3. The timestamp is within 5 minutes of now, in either direction.
 4. The HMAC-SHA512 of `timestamp . "." . rawBody` matches one of the signatures. Payxy may send several, comma-separated, while secrets rotate.
-5. The body is a JSON object with an `Event` and a `Data` object. `payment.success` and `payment.failed` must also carry `Data.TransactionId`. If the body carries a `Mode`, it must match your secret (`Test` for `sk_test_`, `Production` for `sk_live_`). A body with no `Mode` is accepted, because the signature, made with the environment's own secret, already proves where it came from.
+5. The body is a JSON object with an `Event` and a `Data` object. `payment.success` and `payment.failed` must also carry `Data.TransactionId`. If the body carries a `Mode`, it must match your secret (`Test` for `sk_test_`, `Production` for `sk_live_`). A body with no `Mode` is accepted, because the signature, made with the environment's own secret, already proves where it came from. Key names are matched without regard to case: the check Payxy sends when you save a webhook URL uses lowercase `event`, `mode` and `data`.
 
 Answer `400` for a `WebhookVerificationException`.
 
@@ -528,6 +528,7 @@ Answer `400` for a `WebhookVerificationException`.
 | `settlement.failed`       | Settlement hit a terminal failure. The payment itself may be fine | `$event->settlement()`     |
 | `virtual_account.created` | A virtual account finished being created                          | `$event->virtualAccount()` |
 | `virtual_account.failed`  | Virtual account creation failed for good                          | `$event->virtualAccount()` |
+| `webhook.endpoint_verification` | Sent when you save a webhook URL in the dashboard. Accepted; nothing to act on | `getEvent()` |
 
 The typed accessors return `null` for other events, and `$event->data()` is always the raw `Data` array. Unknown event names are never rejected; branch on `getEvent()` or the `isPaymentSuccess()`, `isPaymentFailed()`, `isPaymentReceived()`, `isSettlementCompleted()`, `isSettlementFailed()`, `isVirtualAccountCreated()` and `isVirtualAccountFailed()` helpers. `payment.received` means money arrived, not that your wallet has it: wait for `settlement.completed` before treating funds as available.
 
@@ -545,13 +546,14 @@ The typed accessors return `null` for other events, and `$event->data()` is alwa
 | `getSettlementStatus()` / `settlementStatus()`                                            | Raw string / typed `SettlementStatus`                                |
 | `$event->attempt`                                                                         | Delivery attempt, from `x-payxy-attempt` (a property)                |
 | `idempotencyKey()`                                                                        | The event id; `"payment.success:ORD-10042"` on older payloads        |
+| `hasIdentity()`                                                                           | `false` for the empty older-format copy Payxy sends beside some events |
 | `toArray()`                                                                               | The full payload                                                     |
 
 The typed `Data` objects (`PaymentReceivedData`, `SettlementData`, `VirtualAccountEventData`, in `Payxy\Webhook\Data`) expose the same style of getters for their event: references, `Amount` values, `DateTimeImmutable` instants and `toArray()`. Fields that Payxy omits read as `null`. `PaymentReceivedData` also answers `isExactAmount()`, `isUnderpaid()`, `isOverpaid()`, `isAmountMismatch()` and `isLatePayment()`, and credit `getActualAmount()`, not the expected one.
 
 ### Delivery and idempotency
 
-Payxy can deliver an event more than once, and [`webhookEvents()->resend()`](#webhook-history-and-resend) does it on purpose. De-duplicate on `idempotencyKey()` (or on your order's paid state), and never on `getDeliveryId()`, which changes every attempt. Don't trust a webhook for fulfilment on its own: call `payments()->verify()` first, or use the [checkout helper](#checkout-helper), which does.
+Payxy can deliver an event more than once, and [`webhookEvents()->resend()`](#webhook-history-and-resend) does it on purpose. De-duplicate on `idempotencyKey()` (or on your order's paid state), and never on `getDeliveryId()`, which changes every attempt. Payxy also sends an empty older-format copy beside some events (for example `virtual_account.created`); it has no event id or reference, so `hasIdentity()` is `false`. Skip it and handle the full event. Don't trust a webhook for fulfilment on its own: call `payments()->verify()` first, or use the [checkout helper](#checkout-helper), which does.
 
 ---
 
@@ -776,14 +778,14 @@ $credit->getStatus();    // "QUEUED"
 ```php
 $history = $payxy->webhookEvents()->list();   // up to the latest 100 events; pass ['limit' => '10'] to filter
 foreach ($history->getEvents() as $event) {
-    $event->getEventId();      // stable; pass it to resend()
-    $event->getEventType();    // "settlement.completed"
-    $event->wasDelivered();    // true once an attempt reached your endpoint
-    foreach ($event->getDeliveries() as $delivery) {
-        $delivery->getAttempt();
-        $delivery->getStatus();           // "Delivered", ...
-        $delivery->getHttpStatusCode();   // what your endpoint answered
-    }
+    $event->getEventId();                       // stable; pass it to resend()
+    $event->getEventType();                     // "payment.success", "settlement.completed", ...
+    $event->getDeliveryStatus();                // "DELIVERED", "RETRYING", ...
+    $event->getAttemptCount();                  // attempts made so far
+    $event->wasDelivered();                     // true once an attempt reached your endpoint
+    $event->getNextAttemptAt();                 // when the next retry is due, while still retrying
+    $event->lastAttempt()?->getHttpStatusCode();   // what your endpoint answered last
+    $event->lastAttempt()?->getTrigger();          // "SCHEDULED", or "MANUAL" for a resend
 }
 
 $queued = $payxy->webhookEvents()->resend('evt_...');   // delivers the same event again

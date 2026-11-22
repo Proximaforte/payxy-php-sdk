@@ -22,7 +22,7 @@
         "event": "payment.success", "eventId": "evt_b5376d49e4764fc292819875f34af326",
         "deliveryId": "dlv_18dfffb564084373b31fe05d24adbb40", "version": "1.0",
         "occurredAt": "2026-11-05T10:30:25.125Z",
-        "idempotencyKey": "evt_b5376d49e4764fc292819875f34af326",
+        "idempotencyKey": "evt_b5376d49e4764fc292819875f34af326", "hasIdentity": true,
         "isPaymentSuccess": true, "isPaymentReceived": false,
         "amount": "15000.00", "customerPaid": "15161.25", "amountPaidToMerchant": "15000.00", "totalCharges": "161.25",
         "currency": "NGN", "paymentType": "Transfer", "paymentReference": "PXY-8837261",
@@ -242,11 +242,31 @@
         "MerchantId": 351, "Event": "payment.failed", "Mode": "Test",
         "Data": { "TransactionId": "ORD-123456", "IsSuccessful": false }
       },
-      "expect": { "idempotencyKey": "payment.failed:ORD-123456", "eventId": null, "deliveryId": null, "occurredAt": null }
+      "expect": { "idempotencyKey": "payment.failed:ORD-123456", "eventId": null, "deliveryId": null, "occurredAt": null, "hasIdentity": true }
+    },
+    {
+      "name": "the empty older-format virtual_account.created sent beside the full event has no identity",
+      "payload": {
+        "Event": "virtual_account.created", "Mode": "Test",
+        "Data": {
+          "Amount": null, "PaymentType": null, "Currency": "NGN", "Status": "ACTIVE", "IsSuccessful": false,
+          "GatewayResponse": null, "TransactionId": null, "ProductId": null, "ProductDescription": null,
+          "PaymentDate": null, "CallBackUrl": null, "PaymentReference": null, "RecurringID": null, "Histories": null,
+          "MerchantId": 0, "CardPan": "", "CardType": "", "CardExpiry": "", "OriginatorBank": "", "OriginatorName": "",
+          "OriginatorAccount": "", "SessionId": ""
+        }
+      },
+      "expect": {
+        "event": "virtual_account.created", "isVirtualAccountCreated": true, "hasIdentity": false, "eventId": null,
+        "virtualAccount.virtualAccountId": null, "virtualAccount.accountNumber": null
+      }
     }
   ],
   "verification": {
     "accepted": [
+      { "name": "the endpoint verification ping uses lowercase keys",
+        "payload": { "event": "webhook.endpoint_verification", "eventId": "0d5349991ccb40568e5f66899cdc834d", "mode": "Test",
+                     "createdAt": "2026-11-22T17:38:49.0015618Z", "data": { "message": "Payxy webhook endpoint verification" } } },
       { "name": "a virtual account event needs no TransactionId",
         "payload": { "Event": "virtual_account.created", "Mode": "Test", "Data": { "AccountNumber": "1" } } },
       { "name": "a settlement event needs no TransactionId",

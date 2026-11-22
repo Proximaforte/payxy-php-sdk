@@ -25,7 +25,7 @@ final readonly class WebhookEventRecord extends RawRecord
      */
     public function getEventType(): ?string
     {
-        return $this->data->string('eventType', 'event_type');
+        return $this->data->string('eventType', 'event_type', 'event');
     }
 
     public function getVersion(): ?string
@@ -35,7 +35,49 @@ final readonly class WebhookEventRecord extends RawRecord
 
     public function getOccurredAtUtc(): ?string
     {
-        return $this->data->string('occurredAtUtc', 'occurred_at_utc');
+        return $this->data->string('occurredAtUtc', 'occurred_at_utc', 'occurredAt');
+    }
+
+    /**
+     * Where the event stands, e.g. "DELIVERED" or "RETRYING"; other values are kept as sent.
+     */
+    public function getDeliveryStatus(): ?string
+    {
+        return $this->data->string('deliveryStatus', 'delivery_status');
+    }
+
+    /**
+     * How many delivery attempts have been made so far.
+     */
+    public function getAttemptCount(): ?int
+    {
+        return $this->data->int('attemptCount', 'attempt_count');
+    }
+
+    /**
+     * When the next retry is due, as sent. Present while the event is still being retried.
+     */
+    public function getNextAttemptAt(): ?string
+    {
+        return $this->data->string('nextAttemptAt', 'next_attempt_at');
+    }
+
+    /**
+     * The resource the event is about, e.g. a simulated payment reference.
+     */
+    public function getResourceReference(): ?string
+    {
+        return $this->data->string('resourceReference', 'resource_reference');
+    }
+
+    /**
+     * The most recent delivery attempt, or null when none was made yet.
+     */
+    public function lastAttempt(): ?WebhookDelivery
+    {
+        $raw = $this->data->record('lastAttempt', 'last_attempt');
+
+        return $raw === null ? null : new WebhookDelivery($raw);
     }
 
     public function getOccurredAt(): ?DateTimeImmutable
@@ -44,6 +86,8 @@ final readonly class WebhookEventRecord extends RawRecord
     }
 
     /**
+     * The delivery attempts, when the API lists them one by one.
+     *
      * @return list<WebhookDelivery>
      */
     public function getDeliveries(): array
@@ -59,10 +103,13 @@ final readonly class WebhookEventRecord extends RawRecord
     }
 
     /**
-     * True once at least one attempt reached your endpoint successfully.
+     * True once an attempt reached your endpoint successfully.
      */
     public function wasDelivered(): bool
     {
+        if (strtolower((string) $this->getDeliveryStatus()) === 'delivered' || $this->lastAttempt()?->isDelivered() === true) {
+            return true;
+        }
         foreach ($this->getDeliveries() as $delivery) {
             if ($delivery->isDelivered()) {
                 return true;

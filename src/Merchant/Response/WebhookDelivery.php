@@ -26,11 +26,19 @@ final readonly class WebhookDelivery extends RawRecord
     }
 
     /**
-     * e.g. "Delivered"; other values are kept as sent.
+     * e.g. "Delivered", or "SUCCESS" on a last attempt; other values are kept as sent.
      */
     public function getStatus(): ?string
     {
-        return $this->data->string('status');
+        return $this->data->string('status', 'outcome');
+    }
+
+    /**
+     * What started the attempt, e.g. "SCHEDULED" or "MANUAL" (a resend).
+     */
+    public function getTrigger(): ?string
+    {
+        return $this->data->string('trigger');
     }
 
     /**
@@ -43,7 +51,7 @@ final readonly class WebhookDelivery extends RawRecord
 
     public function getCompletedAtUtc(): ?string
     {
-        return $this->data->string('completedAtUtc', 'completed_at_utc');
+        return $this->data->string('completedAtUtc', 'completed_at_utc', 'at');
     }
 
     public function getCompletedAt(): ?DateTimeImmutable
@@ -53,6 +61,6 @@ final readonly class WebhookDelivery extends RawRecord
 
     public function isDelivered(): bool
     {
-        return strtolower((string) $this->getStatus()) === 'delivered';
+        return \in_array(strtolower((string) $this->getStatus()), ['delivered', 'success'], true);
     }
 }

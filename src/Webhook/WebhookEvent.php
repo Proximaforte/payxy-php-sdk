@@ -118,6 +118,16 @@ final readonly class WebhookEvent
     }
 
     /**
+     * False when the payload carries neither an EventId nor a transaction reference, so there is
+     * nothing to deduplicate on or act on. Payxy sends such an empty older-format copy beside some
+     * full events (for example virtual_account.created); ignore it and handle the full event.
+     */
+    public function hasIdentity(): bool
+    {
+        return ($this->getEventId() ?? '') !== '' || ($this->getTransactionId() ?? '') !== '';
+    }
+
+    /**
      * Stable across redeliveries of the same event; use it to deduplicate. It is the EventId when
      * the payload has one, otherwise the event name and your transaction reference.
      */
